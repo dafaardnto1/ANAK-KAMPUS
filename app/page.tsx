@@ -781,8 +781,8 @@ export default function Home() {
     </div>
   );
 
-  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <p className={`text-[9px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{children}</p>
+  const SectionLabel = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+    <p className={`text-[9px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'} ${className}`}>{children}</p>
   );
 
   const DropZone = ({ onClick, label }: { onClick: () => void; label?: string }) => (
