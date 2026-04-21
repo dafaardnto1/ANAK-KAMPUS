@@ -212,7 +212,7 @@ export default function Home() {
   };
 
   // ─── FINALIZE ────────────────────────────────────────────────────────────────
-  const finalizeProcess = async () => {
+  const finalizeProcess = async (mode?: string) => {
     if (isLoggedIn && profile) {
       const newCount = (profile.download_count ?? 0) + 1;
       try {
