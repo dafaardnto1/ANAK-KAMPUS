@@ -463,7 +463,7 @@ export default function Home() {
       const pages = await merged.copyPages(doc, doc.getPageIndices());
       pages.forEach(p => merged.addPage(p));
     }
-    saveBlob(new Blob([await merged.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_MERGED.pdf');
+    saveBlob(new Blob([await merged.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_MERGED.pdf');
   };
 
   const handlePdfSplitter = async () => {
@@ -473,7 +473,7 @@ export default function Home() {
     const newDoc = await PDFDocument.create();
     const pages  = await newDoc.copyPages(src, Array.from({ length: to - from + 1 }, (_, i) => from + i));
     pages.forEach(p => newDoc.addPage(p));
-    saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_SPLIT.pdf');
+    saveBlob(new Blob([await newDoc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_SPLIT.pdf');
   };
 
   const handlePdfCompressor = async () => {
@@ -492,7 +492,7 @@ export default function Home() {
       const pdfPage  = newDoc.addPage([viewport.width, viewport.height]);
       pdfPage.drawImage(img, { x: 0, y: 0, width: viewport.width, height: viewport.height });
     }
-    saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_COMPRESSED.pdf');
+    saveBlob(new Blob([await newDoc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_COMPRESSED.pdf');
   };
 
   const handleAddWatermark = async () => {
@@ -553,7 +553,7 @@ export default function Home() {
       if (active[i].rotation !== 0) page.setRotation(degrees(active[i].rotation));
       newDoc.addPage(page);
     });
-    saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_ORGANIZED.pdf');
+    saveBlob(new Blob([await newDoc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_ORGANIZED.pdf');
   };
 
   const handleAddSignature = async () => {
@@ -572,7 +572,7 @@ export default function Home() {
       y: height - (parseInt(sigY) || 50) - (w * sigImg.height / sigImg.width),
       width: w, height: w * sigImg.height / sigImg.width
     });
-    saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_SIGNED.pdf');
+    saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_SIGNED.pdf');
   };
 
   const handleOcr = async () => {
