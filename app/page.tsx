@@ -506,7 +506,7 @@ export default function Home() {
         size: 48, font, color: rgb(0.8, 0.1, 0.1), opacity: 0.2, rotate: degrees(45),
       });
     });
-    saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_WATERMARKED.pdf');
+    saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_WATERMARKED.pdf');
   };
 
   const handleProtectPdf = async () => {
@@ -516,7 +516,7 @@ export default function Home() {
     doc.setTitle(`PROTECTED - ${singleFile!.name}`);
     doc.setAuthor('ANAK KAMPUS');
     doc.setSubject(`Password hint: ${pdfPassword[0]}${'*'.repeat(pdfPassword.length - 1)}`);
-    saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_PROTECTED.pdf');
+    saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_PROTECTED.pdf');
   };
 
   const handlePageNumbering = async () => {
@@ -531,7 +531,7 @@ export default function Home() {
               : pageNumberPos === 'bottom-right'  ? width - tWidth - 30 : 30;
       page.drawText(label, { x, y: 22, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
     });
-    saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_NUMBERED.pdf');
+    saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_NUMBERED.pdf');
   };
 
   const handleMetadataEditor = async () => {
@@ -541,7 +541,7 @@ export default function Home() {
     if (metaSubject.trim())  doc.setSubject(metaSubject.trim());
     if (metaKeywords.trim()) doc.setKeywords([metaKeywords.trim()]);
     doc.setProducer('ANAK KAMPUS'); doc.setCreator('ANAK KAMPUS');
-    saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_EDITED.pdf');
+    saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_EDITED.pdf');
   };
 
   const handlePageOrganizer = async () => {
