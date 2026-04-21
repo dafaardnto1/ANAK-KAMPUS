@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
-import { supabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import type { Profile } from './lib/supabase';
 import {
   FileImage, FileUp, Trash2, Download, Zap,
@@ -18,11 +18,16 @@ import {
   Stamp, Lock, QrCode, ScanText, Plus, X,
   Hash, Info, Settings2, RotateCw, Table,
   Images, PenLine, LogOut, UserCircle,
-  Eye, EyeOff, ArrowRight, Sparkles
+  Eye, EyeOff, ArrowRight, Sparkles,
+  Shrink, FileType, Maximize, GraduationCap,
+  Calculator, BookOpen, CaseSensitive, Quote,
+  Palette, Type, Clipboard, FileSignature
 } from 'lucide-react';
 
 interface ImageItem { id: string; src: string; name: string; rotation: number; }
 interface PageItem  { index: number; rotation: number; deleted: boolean; }
+interface IpkCourse { id: string; name: string; grade: string; credit: string; }
+interface PustakaEntry { id: string; author: string; year: string; title: string; pub: string; type: string; }
 
 export default function Home() {
   const router = useRouter();
@@ -45,7 +50,8 @@ export default function Home() {
   const [images, setImages]                 = useState<ImageItem[]>([]);
   const [singleFile, setSingleFile]         = useState<File | null>(null);
   const [multiFiles, setMultiFiles]         = useState<File[]>([]);
-  const [isSidebarOpen, setIsSidebarOpen]   = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen]   = useState(false);
+  const [mobileCategory, setMobileCategory] = useState<string | null>(null);
   const [isProcessing, setIsProcessing]     = useState(false);
   const [ocrResult, setOcrResult]           = useState('');
   const [ocrProgress, setOcrProgress]       = useState(0);
@@ -70,6 +76,29 @@ export default function Home() {
   const [sigY, setSigY]                       = useState('50');
   const [sigWidth, setSigWidth]               = useState('150');
 
+  // ─── NEW FEATURES STATES ──────────────────────────────────────────────────
+  // Image Tools
+  const [compressQuality, setCompressQuality] = useState(80);
+  const [targetFormat, setTargetFormat]       = useState('jpeg');
+  const [resizeWidth, setResizeWidth]         = useState('1080');
+  const [resizeHeight, setResizeHeight]       = useState('');
+  const [resizeLock, setResizeLock]           = useState(true);
+
+  // Student Tools
+  const [coverData, setCoverData]             = useState({ title: '', sub: '', author: '', id: '', uni: '', year: new Date().getFullYear().toString() });
+  const [ipkCourses, setIpkCourses]           = useState<IpkCourse[]>([]);
+  const [pustakaEntries, setPustakaEntries]   = useState<PustakaEntry[]>([]);
+  const [suratData, setSuratData]             = useState({ type: 'IZIN', name: '', id: '', reason: '', date: '' });
+
+  // Text Tools
+  const [wordText, setWordText]               = useState('');
+  const [loremCount, setLoremCount]           = useState(3);
+  const [pickedColor, setPickedColor]         = useState('#EF4444');
+
+  // Temporary States for Inputs
+  const [ipkNew, setIpkNew] = useState({ name: '', grade: 'A', sks: '3' });
+  const [pustakaNew, setPustakaNew] = useState({ author: '', year: '', title: '', pub: '' });
+
   const fileInputRef      = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
   const sigInputRef       = useRef<HTMLInputElement>(null);
@@ -91,30 +120,43 @@ export default function Home() {
   }, []);
 
   const checkSession = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await loadProfile(user.id);
-      await checkReset(user.id);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await loadProfile(user.id);
+        await checkReset(user.id);
+      }
+    } catch (e) {
+      console.warn('Supabase session check failed (offline mode):', e);
     }
   };
 
   const loadProfile = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (data) setProfile(data);
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (data) setProfile(data);
+    } catch (e) {
+      console.warn('Failed to load profile:', e);
+    }
   };
 
   const checkReset = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles').select('last_reset, is_premium').eq('id', userId).single();
-    if (!data) return;
-    const diffDays = Math.floor(
-      (new Date().getTime() - new Date(data.last_reset).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    if (!data.is_premium && diffDays >= 15) {
-      await supabase.from('profiles')
-        .update({ download_count: 0, last_reset: new Date().toISOString() })
-        .eq('id', userId);
-      await loadProfile(userId);
+    try {
+      const { data } = await supabase
+        .from('profiles').select('last_reset, is_premium').eq('id', userId).single();
+      if (!data) return;
+      const diffDays = Math.floor(
+        (new Date().getTime() - new Date(data.last_reset).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (!data.is_premium && diffDays >= 15) {
+        await supabase.from('profiles')
+          .update({ download_count: 0, last_reset: new Date().toISOString() })
+          .eq('id', userId);
+        await loadProfile(userId);
+      }
+    } catch (e) {
+      console.warn('Failed to check reset:', e);
     }
   };
 
@@ -149,7 +191,11 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Logout error:', e);
+    }
     setProfile(null);
   };
 
@@ -169,7 +215,11 @@ export default function Home() {
   const finalizeProcess = async () => {
     if (isLoggedIn && profile) {
       const newCount = (profile.download_count ?? 0) + 1;
-      await supabase.from('profiles').update({ download_count: newCount }).eq('id', profile.id);
+      try {
+        await supabase.from('profiles').update({ download_count: newCount }).eq('id', profile.id);
+      } catch (e) {
+        console.warn('Failed to update download count:', e);
+      }
       setProfile(prev => prev ? { ...prev, download_count: newCount } : null);
     } else {
       const newCount = localCount + 1;
@@ -210,6 +260,31 @@ export default function Home() {
       ]
     },
     {
+      label: 'Image Tools',
+      items: [
+        { id: 'IMAGE_COMPRESSOR', name: 'Kompres Gambar',   icon: <Shrink size={15}/> },
+        { id: 'IMAGE_CONVERTER',  name: 'Format Converter', icon: <FileType size={15}/> },
+        { id: 'IMAGE_RESIZER',    name: 'Resize Gambar',    icon: <Maximize size={15}/> },
+      ]
+    },
+    {
+      label: 'Student',
+      items: [
+        { id: 'COVER_GENERATOR',  name: 'Cover Makalah',     icon: <GraduationCap size={15}/> },
+        { id: 'IPK_CALCULATOR',   name: 'Kalkulator IPK',   icon: <Calculator size={15}/> },
+        { id: 'PUSTAKA_GENERATOR', name: 'Daftar Pustaka',   icon: <BookOpen size={15}/> },
+        { id: 'SURAT_GENERATOR',  name: 'Surat Mahasiswa',  icon: <FileSignature size={15}/> },
+      ]
+    },
+    {
+      label: 'Text Tools',
+      items: [
+        { id: 'WORD_COUNTER',     name: 'Hitung Kata',      icon: <CaseSensitive size={15}/> },
+        { id: 'LOREM_IPSUM',      name: 'Lorem Ipsum',      icon: <Type size={15}/> },
+        { id: 'COLOR_PICKER',     name: 'Color Picker',     icon: <Palette size={15}/> },
+      ]
+    },
+    {
       label: 'Ekstra',
       items: [
         { id: 'QR_CODE', name: 'QR Code Generator', icon: <QrCode size={15}/> },
@@ -236,6 +311,18 @@ export default function Home() {
     ADD_SIGNATURE:   { accept:".pdf",       multi:false, label:"Upload PDF untuk ditandatangani",     tip:"Gunakan PNG transparan untuk hasil terbaik." },
     QR_CODE:         { accept:"",          multi:false, label:"Tidak perlu upload file",             tip:"QR didownload sebagai PNG resolusi tinggi." },
     OCR:             { accept:"image/*",    multi:false, label:"Upload foto/screenshot teks",         tip:"Bahasa Indonesia & Inggris didukung." },
+    
+    // NEW
+    IMAGE_COMPRESSOR: { accept:"image/*",   multi:false, label:"Upload gambar untuk dikompres",        tip:"Mendukung JPG, PNG, WebP." },
+    IMAGE_CONVERTER:  { accept:"image/*",   multi:false, label:"Upload gambar untuk dikonversi",       tip:"Hasil bisa diunduh dalam berbagai format." },
+    IMAGE_RESIZER:    { accept:"image/*",   multi:false, label:"Upload gambar untuk di-resize",        tip:"Masukkan lebar/tinggi dalam pixel." },
+    COVER_GENERATOR:  { accept:"",          multi:false, label:"Isi form untuk buat cover",             tip:"Download langsung sebagai PDF A4." },
+    IPK_CALCULATOR:   { accept:"",          multi:false, label:"Masukkan nilai matkul kamu",           tip:"IPK dihitung secara otomatis." },
+    PUSTAKA_GENERATOR: { accept:"",          multi:false, label:"Input data sumber referensi",          tip:"Format APA otomatis siap copas." },
+    SURAT_GENERATOR:  { accept:"",          multi:false, label:"Pilih template surat kamu",            tip:"PDF surat resmi mahasiswa." },
+    WORD_COUNTER:     { accept:"",          multi:false, label:"Paste teks untuk dihitung",            tip:"Hitung kata, karakter, dan estimasi baca." },
+    LOREM_IPSUM:      { accept:"",          multi:false, label:"Generate teks dummy",                  tip:"Atur jumlah paragraf yang dibutuhkan." },
+    COLOR_PICKER:     { accept:"",          multi:false, label:"Pilih warna untuk desain",             tip:"Copy HEX, RGB, atau HSL dengan mudah." },
   };
 
   // ─── RESET ───────────────────────────────────────────────────────────────────
@@ -249,6 +336,15 @@ export default function Home() {
     setMetaTitle(''); setMetaAuthor(''); setMetaSubject(''); setMetaKeywords('');
     setOrganizerPages([]); setOrganizerLoaded(false);
     setSigFile(null); setSigPage('1'); setSigX('50'); setSigY('50'); setSigWidth('150');
+    
+    setCompressQuality(80); setTargetFormat('jpeg');
+    setResizeWidth('1080'); setResizeHeight(''); setResizeLock(true);
+    setCoverData({ title: '', sub: '', author: '', id: '', uni: '', year: new Date().getFullYear().toString() });
+    setIpkCourses([]); setPustakaEntries([]);
+    setSuratData({ type: 'IZIN', name: '', id: '', reason: '', date: '' });
+    setWordText(''); setLoremCount(3); setPickedColor('#EF4444');
+    setIpkNew({ name: '', grade: 'A', sks: '3' });
+    setPustakaNew({ author: '', year: '', title: '', pub: '' });
   };
 
   // ─── FILE HANDLERS ───────────────────────────────────────────────────────────
@@ -482,11 +578,130 @@ export default function Home() {
   const handleOcr = async () => {
     setOcrResult(''); setOcrProgress(0);
     const Tesseract = await import('tesseract.js');
-    const result    = await (Tesseract as any).recognize(singleFile!, 'ind+eng', {
-      logger: (m: any) => { if (m.status === 'recognizing text') setOcrProgress(Math.round(m.progress * 100)); }
-    });
+    const result = await (Tesseract as any).recognize(singleFile!, 'ind+eng', { logger: (m: any) => setOcrProgress(Math.round(m.progress * 100)) });
     setOcrResult(result.data.text);
-    setIsProcessing(false);
+    await finalizeProcess('OCR');
+  };
+
+  const handleImageCompressor = async () => {
+    if (!singleFile) return;
+    const img = new Image();
+    img.src = URL.createObjectURL(singleFile);
+    await new Promise(resolve => img.onload = resolve);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext('2d')?.drawImage(img, 0, 0);
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        await saveBlob(blob, `compressed_${singleFile.name.split('.')[0]}.jpg`);
+        await finalizeProcess('IMAGE_COMPRESSOR');
+      }
+    }, 'image/jpeg', compressQuality / 100);
+  };
+
+  const handleImageConverter = async () => {
+    if (!singleFile) return;
+    const img = new Image();
+    img.src = URL.createObjectURL(singleFile);
+    await new Promise(resolve => img.onload = resolve);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext('2d')?.drawImage(img, 0, 0);
+    const mime = `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`;
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        await saveBlob(blob, `converted_${singleFile.name.split('.')[0]}.${targetFormat}`);
+        await finalizeProcess('IMAGE_CONVERTER');
+      }
+    }, mime, 0.9);
+  };
+
+  const handleImageResizer = async () => {
+    if (!singleFile) return;
+    const img = new Image();
+    img.src = URL.createObjectURL(singleFile);
+    await new Promise(resolve => img.onload = resolve);
+    const canvas = document.createElement('canvas');
+    const w = parseInt(resizeWidth) || img.width;
+    const h = parseInt(resizeHeight) || (resizeLock ? (img.height * w) / img.width : img.height);
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        await saveBlob(blob, `resized_${singleFile.name}`);
+        await finalizeProcess('IMAGE_RESIZER');
+      }
+    }, singleFile.type, 0.9);
+  };
+
+  const handleCoverGenerator = async () => {
+    const doc = new jsPDF();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22); doc.text(coverData.uni.toUpperCase(), 105, 40, { align: 'center' });
+    doc.setFontSize(18); doc.text('MAKALAH', 105, 80, { align: 'center' });
+    doc.setLineWidth(0.5); doc.line(40, 85, 170, 85);
+    doc.setFontSize(16); doc.text(coverData.title.toUpperCase(), 105, 100, { align: 'center', maxWidth: 140 });
+    if (coverData.sub) { doc.setFontSize(12); doc.setFont('helvetica', 'normal'); doc.text(coverData.sub, 105, 115, { align: 'center', maxWidth: 140 }); }
+    doc.setFont('helvetica', 'bold'); doc.text('DISUSUN OLEH:', 105, 160, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.text(`${coverData.author}\n(${coverData.id})`, 105, 170, { align: 'center' });
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(coverData.year, 105, 250, { align: 'center' });
+    doc.save(`Cover_${coverData.title.substring(0,10)}.pdf`);
+    await finalizeProcess('COVER_GENERATOR');
+  };
+
+  const handleIpkCalculator = async () => {
+    const doc = new jsPDF();
+    const totalCredit = ipkCourses.reduce((sum, c) => sum + (parseInt(c.credit) || 0), 0);
+    const gradeMap: any = { 'A': 4, 'B': 3, 'C': 2, 'D': 1, 'E': 0 };
+    const totalPoint = ipkCourses.reduce((sum, c) => sum + (gradeMap[c.grade] * (parseInt(c.credit) || 0)), 0);
+    const ipk = totalCredit ? (totalPoint / totalCredit).toFixed(2) : '0.00';
+    doc.setFontSize(20); doc.text('LAPORAN ESTIMASI IPK', 105, 20, { align: 'center' });
+    doc.setFontSize(12); let y = 40;
+    ipkCourses.forEach((c, i) => { doc.text(`${i+1}. ${c.name} - Grade: ${c.grade} (${c.credit} SKS)`, 20, y); y += 10; });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text(`TOTAL IPK: ${ipk}`, 20, y + 10);
+    doc.save('Estimasi_IPK.pdf');
+    await finalizeProcess('IPK_CALCULATOR');
+  };
+
+  const handlePustakaGenerator = async () => {
+    const content = pustakaEntries.map(e => `${e.author}. (${e.year}). ${e.title}. ${e.pub}.`).join('\n\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    await saveBlob(blob, 'Daftar_Pustaka.txt');
+    await finalizeProcess('PUSTAKA_GENERATOR');
+  };
+
+  const handleSuratGenerator = async () => {
+    const doc = new jsPDF();
+    doc.setFontSize(14); doc.setFont('times', 'bold');
+    doc.text('SURAT KETERANGAN MAHASISWA', 105, 30, { align: 'center' });
+    doc.setFont('times', 'normal'); doc.setFontSize(12);
+    const text = suratData.type === 'IZIN' 
+      ? `Saya yang bertanda tangan di bawah ini:\n\nNama: ${suratData.name}\nNIM: ${suratData.id}\n\nMenyatakan bahwa saya tidak dapat mengikuti perkuliahan pada tanggal ${suratData.date} dikarenakan ${suratData.reason}.\n\nDemikian surat ini saya buat dengan sebenar-benarnya.`
+      : `Kepada Yth. Bagian Akademik,\n\nSaya ${suratData.name} (NIM: ${suratData.id}) memohon untuk ${suratData.reason}.\n\nTerima kasih atas perhatiannya.`;
+    doc.text(doc.splitTextToSize(text, 170), 20, 50);
+    doc.text(`Bekasi, ${new Date().toLocaleDateString('id-ID')}\n\n\n\n( ${suratData.name} )`, 130, 150);
+    doc.save(`Surat_${suratData.type}.pdf`);
+    await finalizeProcess('SURAT_GENERATOR');
+  };
+
+  const handleWordCounter = async () => {
+    const blob = new Blob([`Statistik Teks:\n\n${wordText}\n\nKata: ${wordText.trim().split(/\s+/).length}\nKarakter: ${wordText.length}`], { type: 'text/plain' });
+    await saveBlob(blob, 'Statistik_Teks.txt');
+    await finalizeProcess('WORD_COUNTER');
+  };
+
+  const handleLoremIpsum = async () => {
+    const dummy = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ";
+    const content = Array(loremCount).fill(dummy).join('\n\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    await saveBlob(blob, 'Lorem_Ipsum.txt');
+    await finalizeProcess('LOREM_IPSUM');
+  };
+
+  const handleColorPicker = async () => {
+    await navigator.clipboard.writeText(pickedColor);
+    alert(`Warna ${pickedColor} berhasil disalin ke clipboard!`);
+    await finalizeProcess('COLOR_PICKER');
   };
 
   const handleQrCode = async () => {
@@ -516,6 +731,10 @@ export default function Home() {
         PROTECT_PDF: handleProtectPdf,      PAGE_NUMBERING: handlePageNumbering,
         METADATA_EDITOR: handleMetadataEditor, PAGE_ORGANIZER: handlePageOrganizer,
         ADD_SIGNATURE: handleAddSignature,  QR_CODE: handleQrCode, OCR: handleOcr,
+        IMAGE_COMPRESSOR: handleImageCompressor, IMAGE_CONVERTER: handleImageConverter, IMAGE_RESIZER: handleImageResizer,
+        COVER_GENERATOR: handleCoverGenerator, IPK_CALCULATOR: handleIpkCalculator, PUSTAKA_GENERATOR: handlePustakaGenerator,
+        SURAT_GENERATOR: handleSuratGenerator, WORD_COUNTER: handleWordCounter, LOREM_IPSUM: handleLoremIpsum,
+        COLOR_PICKER: handleColorPicker,
       };
       await map[currentMode]?.();
     } catch (e) {
@@ -538,6 +757,7 @@ export default function Home() {
     if (currentMode === 'QR_CODE')        return qrContent.trim().length > 0;
     if (currentMode === 'PAGE_ORGANIZER') return organizerLoaded && organizerPages.some(p => !p.deleted);
     if (currentMode === 'ADD_SIGNATURE')  return singleFile !== null && sigFile !== null;
+    if (['COVER_GENERATOR','IPK_CALCULATOR','PUSTAKA_GENERATOR','SURAT_GENERATOR','WORD_COUNTER','LOREM_IPSUM','COLOR_PICKER'].includes(currentMode)) return true;
     return singleFile !== null;
   };
 
@@ -711,19 +931,24 @@ export default function Home() {
       </aside>
 
       {/* ── MAIN ────────────────────────────────────────────────────────────── */}
-      <main className="flex-1 p-5 md:p-9 overflow-y-auto">
+      <main className="flex-1 p-5 md:p-9 overflow-y-auto pb-36 lg:pb-9">
         <div className="max-w-4xl mx-auto">
 
           {/* ── TOPBAR ──────────────────────────────────────────────────────── */}
-          <header className="flex items-center justify-between mb-7">
+          <header className="flex items-center justify-between mb-5 lg:mb-7">
             <div className="flex items-center gap-3">
               <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`lg:hidden p-2.5 rounded-xl border ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200'}`}>
+                className={`hidden lg:hidden p-2.5 rounded-xl border ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200'}`}>
                 <Menu size={17}/>
               </button>
               <div>
-                <h1 className="text-lg font-black uppercase italic tracking-tight">{currentMode.replace(/_/g,' ')}</h1>
-                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{cfg.label}</p>
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg lg:hidden ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    {menuGroups.flatMap(g => g.items).find(i => i.id === currentMode)?.icon}
+                  </div>
+                  <h1 className="text-base lg:text-lg font-black uppercase italic tracking-tight">{currentMode.replace(/_/g,' ')}</h1>
+                </div>
+                <p className={`text-[11px] mt-0.5 hidden lg:block ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{cfg.label}</p>
               </div>
             </div>
 
@@ -756,6 +981,25 @@ export default function Home() {
             </div>
           </header>
 
+          {/* ── MOBILE QUOTA BAR ─────────────────────────────────────────── */}
+          <div className={`lg:hidden mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border
+            ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-200'}`}>
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-1">
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Kuota</span>
+                <span className={`text-[9px] font-black ${quotaFull ? 'text-red-500' : 'text-red-600'}`}>{downloadCount}/{MAX_QUOTA}</span>
+              </div>
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                <div className={`h-full duration-700 rounded-full ${quotaFull ? 'bg-red-600' : 'bg-red-500'}`}
+                  style={{ width: `${Math.min((downloadCount/MAX_QUOTA)*100,100)}%` }}/>
+              </div>
+            </div>
+            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full
+              ${isPremium ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
+              {isPremium ? '⭐ PRO' : 'Free'}
+            </span>
+          </div>
+
           {/* ── PREMIUM BANNER — selalu tampil untuk non-premium ────────────── */}
           {!isPremium && (
             <button
@@ -786,27 +1030,248 @@ export default function Home() {
                   {isLoggedIn ? 'Upgrade' : 'Login dulu'} <ArrowRight size={12}/>
                 </div>
               </div>
-
-              {/* QUOTA INFO — hanya tampil kalau sudah hampir habis */}
-              {downloadCount > 0 && (
-                <div className="relative mt-3 pt-3 border-t border-white/20">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-white/70 text-[10px] font-bold uppercase">Kuota gratis kamu</span>
-                    <span className="text-white text-[10px] font-black">{downloadCount}/{MAX_QUOTA}</span>
-                  </div>
-                  <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-white rounded-full duration-700"
-                      style={{ width: `${Math.min((downloadCount / MAX_QUOTA) * 100, 100)}%` }}/>
-                  </div>
-                </div>
-              )}
             </button>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
             {/* ── LEFT ──────────────────────────────────────────────────────── */}
             <div className="lg:col-span-2 space-y-4">
+              {/* IMAGE TOOLS UI */}
+              {currentMode === 'IMAGE_COMPRESSOR' && (
+                <div className="space-y-4">
+                  <input type="file" hidden accept="image/*" ref={fileInputRef} onChange={handleFileChange}/>
+                  <DropZone onClick={() => fileInputRef.current?.click()} label={singleFile ? singleFile.name : 'Upload Gambar'}/>
+                  {singleFile && (
+                    <Card className="space-y-3">
+                      <SectionLabel>Kualitas Kompresi: {compressQuality}%</SectionLabel>
+                      <input type="range" min="10" max="100" value={compressQuality} onChange={e => setCompressQuality(parseInt(e.target.value))}
+                        className="w-full accent-red-600 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"/>
+                      <p className="text-[10px] text-gray-400 italic">Semakin rendah kualitas, semakin kecil ukuran file.</p>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {currentMode === 'IMAGE_CONVERTER' && (
+                <div className="space-y-4">
+                  <input type="file" hidden accept="image/*" ref={fileInputRef} onChange={handleFileChange}/>
+                  <DropZone onClick={() => fileInputRef.current?.click()} label={singleFile ? singleFile.name : 'Upload Gambar'}/>
+                  {singleFile && (
+                    <Card className="space-y-4">
+                      <SectionLabel>Pilih Format Tujuan</SectionLabel>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['jpeg', 'png', 'webp'].map(fmt => (
+                          <button key={fmt} onClick={() => setTargetFormat(fmt)}
+                            className={`py-2 rounded-xl text-xs font-bold uppercase duration-200 border
+                              ${targetFormat === fmt ? 'bg-red-600 text-white border-red-600 shadow-lg' : 'bg-transparent border-gray-200 text-gray-400 hover:border-red-500'}`}>
+                            {fmt}
+                          </button>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {currentMode === 'IMAGE_RESIZER' && (
+                <div className="space-y-4">
+                  <input type="file" hidden accept="image/*" ref={fileInputRef} onChange={handleFileChange}/>
+                  <DropZone onClick={() => fileInputRef.current?.click()} label={singleFile ? singleFile.name : 'Upload Gambar'}/>
+                  {singleFile && (
+                    <Card className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Lebar (px)" value={resizeWidth} onChange={setResizeWidth} placeholder="1080"/>
+                        <Field label="Tinggi (px)" value={resizeHeight} onChange={setResizeHeight} placeholder="Auto"/>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={resizeLock} onChange={e => setResizeLock(e.target.checked)} className="accent-red-600"/>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">Kunci Aspek Rasio</span>
+                      </label>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* STUDENT TOOLS UI */}
+              {currentMode === 'COVER_GENERATOR' && (
+                <Card className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2"><SectionLabel>Informasi Makalah</SectionLabel></div>
+                  <Field label="Judul Makalah" value={coverData.title} onChange={v => setCoverData({...coverData, title: v})} placeholder="Contoh: Analisis Algoritma"/>
+                  <Field label="Sub-Judul (Optional)" value={coverData.sub} onChange={v => setCoverData({...coverData, sub: v})} placeholder="Mata Kuliah: Struktur Data"/>
+                  <Field label="Nama Penyusun" value={coverData.author} onChange={v => setCoverData({...coverData, author: v})} placeholder="Dafa Ardian"/>
+                  <Field label="NIM / ID" value={coverData.id} onChange={v => setCoverData({...coverData, id: v})} placeholder="20210801001"/>
+                  <Field label="Universitas / Instansi" value={coverData.uni} onChange={v => setCoverData({...coverData, uni: v})} placeholder="Universitas Esa Unggul"/>
+                  <Field label="Tahun" value={coverData.year} onChange={v => setCoverData({...coverData, year: v})} placeholder="2024"/>
+                </Card>
+              )}
+
+              {currentMode === 'IPK_CALCULATOR' && (
+                <Card className="space-y-4">
+                  <SectionLabel>Daftar Mata Kuliah</SectionLabel>
+                  <div className="space-y-2">
+                    {ipkCourses.map(c => (
+                      <div key={c.id} className="flex items-center gap-2 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
+                        <div className="flex-1">
+                          <p className="text-xs font-black truncate">{c.name || 'Matakuliah'}</p>
+                          <p className="text-[10px] text-gray-400">{c.grade} • {c.credit} SKS</p>
+                        </div>
+                        <button onClick={() => setIpkCourses(ipkCourses.filter(x => x.id !== c.id))} className="text-red-500 p-1.5 hover:bg-red-50 rounded-lg">
+                          <Trash2 size={14}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20">
+                    <div className="col-span-5">
+                      <input type="text" placeholder="Nama MK" value={ipkNew.name} onChange={e => setIpkNew({...ipkNew, name: e.target.value})} className="w-full bg-transparent text-xs font-bold outline-none"/>
+                    </div>
+                    <div className="col-span-3">
+                      <select value={ipkNew.grade} onChange={e => setIpkNew({...ipkNew, grade: e.target.value})} className="w-full bg-transparent text-xs font-bold outline-none">
+                        {['A','B','C','D','E'].map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <input type="number" placeholder="SKS" value={ipkNew.sks} onChange={e => setIpkNew({...ipkNew, sks: e.target.value})} className="w-full bg-transparent text-xs font-bold outline-none"/>
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <button onClick={() => {
+                        if (ipkNew.name) {
+                          setIpkCourses([...ipkCourses, { id: Date.now().toString(), name: ipkNew.name, grade: ipkNew.grade, credit: ipkNew.sks }]);
+                          setIpkNew({ name: '', grade: 'A', sks: '3' });
+                        }
+                      }} className="bg-red-600 text-white p-1.5 rounded-lg shadow-md"><Plus size={14}/></button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {currentMode === 'PUSTAKA_GENERATOR' && (
+                <Card className="space-y-4">
+                  <SectionLabel>Data Referensi (APA Style)</SectionLabel>
+                  <div className="space-y-3">
+                    {pustakaEntries.map(e => (
+                      <div key={e.id} className="p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 group relative">
+                        <p className="text-xs italic text-gray-600 dark:text-gray-400">
+                          {e.author}. ({e.year}). <span className="font-bold">{e.title}</span>. {e.pub}.
+                        </p>
+                        <button onClick={() => setPustakaEntries(pustakaEntries.filter(x => x.id !== e.id))} 
+                          className="absolute right-2 top-2 text-red-500 opacity-0 group-hover:opacity-100 duration-200">
+                          <Trash2 size={12}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <Field label="Penulis" placeholder="Contoh: Doe, J." value={pustakaNew.author} onChange={(v:any) => setPustakaNew({...pustakaNew, author: v})}/>
+                    <Field label="Tahun" placeholder="2023" value={pustakaNew.year} onChange={(v:any) => setPustakaNew({...pustakaNew, year: v})}/>
+                    <div className="col-span-2">
+                      <Field label="Judul Buku/Artikel" placeholder="Studi Kasus..." value={pustakaNew.title} onChange={(v:any) => setPustakaNew({...pustakaNew, title: v})}/>
+                    </div>
+                    <div className="col-span-2 flex items-end gap-3">
+                      <div className="flex-1">
+                        <Field label="Penerbit / Jurnal" placeholder="Gramedia" value={pustakaNew.pub} onChange={(v:any) => setPustakaNew({...pustakaNew, pub: v})}/>
+                      </div>
+                      <button onClick={() => {
+                        if (pustakaNew.author && pustakaNew.title) {
+                          setPustakaEntries([...pustakaEntries, { id: Date.now().toString(), ...pustakaNew, type: 'BOOK' }]);
+                          setPustakaNew({ author: '', year: '', title: '', pub: '' });
+                        }
+                      }} className="bg-gray-800 text-white px-4 h-[42px] rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg">Tambah</button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {currentMode === 'SURAT_GENERATOR' && (
+                <Card className="space-y-4">
+                  <SectionLabel>Konfigurasi Surat</SectionLabel>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <SectionLabel className="text-[9px] mb-2">TIPE SURAT</SectionLabel>
+                      <div className="flex gap-2">
+                        {['IZIN', 'PERMOHONAN'].map(t => (
+                          <button key={t} onClick={() => setSuratData({...suratData, type: t})}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold duration-200 border
+                              ${suratData.type === t ? 'bg-red-600 text-white border-red-600 shadow-md' : 'bg-transparent border-gray-200 text-gray-400 hover:border-red-500'}`}>
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <Field label="Nama Lengkap" value={suratData.name} onChange={v => setSuratData({...suratData, name: v})} placeholder="Dafa Ardian"/>
+                    <Field label="NIM" value={suratData.id} onChange={v => setSuratData({...suratData, id: v})} placeholder="20210801001"/>
+                    <Field label="Tanggal Kejadian" value={suratData.date} onChange={v => setSuratData({...suratData, date: v})} placeholder="20 April 2024"/>
+                    <div className="col-span-2">
+                      <Field label="Alasan / Keperluan" value={suratData.reason} onChange={v => setSuratData({...suratData, reason: v})} placeholder="Sakit / Cuti / Pengambilan Ijazah"/>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* TEXT TOOLS UI */}
+              {currentMode === 'WORD_COUNTER' && (
+                <Card className="space-y-4">
+                  <SectionLabel>Tempel Teks di Sini</SectionLabel>
+                  <textarea value={wordText} onChange={e => setWordText(e.target.value)}
+                    placeholder="Ketik atau tempel teks tugasmu di sini untuk dianalisis..." rows={8}
+                    className={`w-full px-4 py-3 rounded-2xl text-sm font-medium outline-none border resize-none focus:border-red-500 duration-200
+                      ${isDark ? 'bg-gray-900 border-gray-700 text-gray-100 placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-gray-800'}`}/>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-center">
+                      <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Kata</p>
+                      <p className="text-lg font-black text-red-600">{wordText.trim() ? wordText.trim().split(/\s+/).length : 0}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-center">
+                      <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Karakter</p>
+                      <p className="text-lg font-black text-red-600">{wordText.length}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-center">
+                      <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Waktu Baca</p>
+                      <p className="text-lg font-black text-red-600">{Math.ceil((wordText.trim().split(/\s+/).length) / 200)}m</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {currentMode === 'LOREM_IPSUM' && (
+                <Card className="space-y-4 text-center">
+                  <div className="mx-auto w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600 mb-2">
+                    <Type size={24}/>
+                  </div>
+                  <SectionLabel>Jumlah Paragraf: {loremCount}</SectionLabel>
+                  <input type="range" min="1" max="10" value={loremCount} onChange={e => setLoremCount(parseInt(e.target.value))}
+                    className="w-full accent-red-600 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"/>
+                  <p className="text-xs text-gray-400">Generate teks dummy untuk placeholder tugas desain kamu.</p>
+                </Card>
+              )}
+
+              {currentMode === 'COLOR_PICKER' && (
+                <Card className="space-y-4">
+                  <SectionLabel>Pilih Warna</SectionLabel>
+                  <div className="flex flex-col items-center gap-6 py-4">
+                    <div className="relative group">
+                      <input type="color" value={pickedColor} onChange={e => setPickedColor(e.target.value)}
+                        className="w-32 h-32 rounded-full cursor-pointer border-8 border-white dark:border-gray-800 shadow-2xl overflow-hidden"/>
+                      <div className="absolute inset-0 rounded-full pointer-events-none border border-black/5"/>
+                    </div>
+                    <div className="w-full space-y-3">
+                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                        <p className="text-xs font-black flex-1 font-mono uppercase">{pickedColor}</p>
+                        <button onClick={() => { navigator.clipboard.writeText(pickedColor); alert('HEX Copied!'); }}
+                          className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:scale-105 active:scale-95 duration-200">
+                          <Clipboard size={14} className="text-gray-400"/>
+                        </button>
+                      </div>
+                      <div className="flex justify-center gap-2">
+                        {['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'].map(c => (
+                          <button key={c} onClick={() => setPickedColor(c)} style={{ backgroundColor: c }}
+                            className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-800 shadow-sm hover:scale-125 duration-200"/>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
 
               {currentMode === 'QR_CODE' && (
                 <Card className="space-y-4">
@@ -1034,7 +1499,9 @@ export default function Home() {
               )}
 
               {!['QR_CODE','OCR','PDF_MERGER','PDF_SPLITTER','PAGE_NUMBERING','METADATA_EDITOR',
-                 'PAGE_ORGANIZER','ADD_SIGNATURE','ADD_WATERMARK','PROTECT_PDF','IMAGE_TO_EXCEL'].includes(currentMode) && (
+                'PAGE_ORGANIZER','ADD_SIGNATURE','IMAGE_COMPRESSOR','IMAGE_CONVERTER','IMAGE_RESIZER',
+                'COVER_GENERATOR','IPK_CALCULATOR','PUSTAKA_GENERATOR','SURAT_GENERATOR',
+                'WORD_COUNTER','LOREM_IPSUM','COLOR_PICKER','ADD_WATERMARK','PROTECT_PDF','IMAGE_TO_EXCEL'].includes(currentMode) && (
                 <div className="space-y-4">
                   <input type="file" hidden multiple={cfg.multi} accept={cfg.accept} ref={fileInputRef} onChange={handleFileChange}/>
                   <DropZone onClick={() => fileInputRef.current?.click()} label={singleFile ? singleFile.name : images.length > 0 ? `${images.length} gambar dipilih` : undefined}/>
@@ -1129,6 +1596,84 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* ── MOBILE FLOATING ACTION ──────────────────────────────────────── */}
+      {(isReady() || quotaFull) && (
+        <div className="fixed bottom-[4.25rem] left-0 right-0 z-40 px-4 lg:hidden">
+          <div className={`p-1.5 rounded-[1.25rem] backdrop-blur-xl shadow-2xl border
+            ${isDark ? 'bg-[#0B0F1A]/95 border-gray-800' : 'bg-white/95 border-gray-100'}`}>
+            <button onClick={handleMainAction} disabled={(!isReady() && !quotaFull) || isProcessing}
+              className={`w-full py-3.5 rounded-2xl font-black uppercase text-[11px] tracking-widest duration-200 flex items-center justify-center gap-2
+                ${quotaFull
+                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-red-500/30'
+                  : isReady() && !isProcessing
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-500/30 active:scale-95'
+                    : isDark ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}>
+              {isProcessing ? (
+                <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Memproses...</>
+              ) : quotaFull ? (
+                <><Crown size={13} className="fill-current"/> Kuota Habis — Upgrade</>
+              ) : (
+                <><Download size={14}/> {currentMode === 'OCR' ? 'Mulai Scan' : currentMode === 'QR_CODE' ? 'Generate QR' : 'Download'}</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MOBILE BOTTOM SHEET ─────────────────────────────────────────── */}
+      {mobileCategory && (
+        <>
+          <div className="fixed inset-0 z-[55] bg-black/40 backdrop-blur-sm lg:hidden" onClick={() => setMobileCategory(null)}/>
+          <div className={`fixed bottom-[4rem] left-0 right-0 z-[56] rounded-t-[2rem] overflow-hidden lg:hidden
+            ${isDark ? 'bg-[#0B0F1A] border-t border-gray-800' : 'bg-white border-t border-gray-200'}`}>
+            <div className="p-5 pb-6">
+              <div className={`w-10 h-1 rounded-full mx-auto mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}/>
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{mobileCategory}</p>
+              <div className="grid grid-cols-3 gap-2 max-h-[45vh] overflow-y-auto">
+                {menuGroups.find(g => g.label === mobileCategory)?.items.map(item => (
+                  <button key={item.id}
+                    onClick={() => { setCurrentMode(item.id); resetState(); setMobileCategory(null); }}
+                    className={`flex flex-col items-center gap-2 p-3.5 rounded-2xl duration-150
+                      ${currentMode === item.id
+                        ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
+                        : isDark ? 'bg-gray-900/80 text-gray-400 active:bg-gray-800' : 'bg-gray-50 text-gray-500 active:bg-gray-100'}`}>
+                    {item.icon}
+                    <span className="text-[9px] font-bold text-center leading-tight">{item.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── MOBILE BOTTOM NAV ──────────────────────────────────────────── */}
+      <nav className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t backdrop-blur-xl
+        ${isDark ? 'bg-[#0B0F1A]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="flex items-stretch">
+          {menuGroups.map(group => {
+            const isActive = group.items.some(i => i.id === currentMode);
+            const isOpen = mobileCategory === group.label;
+            return (
+              <button key={group.label}
+                onClick={() => setMobileCategory(isOpen ? null : group.label)}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 relative duration-150
+                  ${isActive ? 'text-red-600' : isOpen ? (isDark ? 'text-gray-200' : 'text-gray-700') : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-red-600 rounded-full"/>}
+                {group.label === 'Konversi' ? <FileImage size={19}/> : group.label === 'PDF Tools' ? <Layers size={19}/> : <Sparkles size={19}/>}
+                <span className="text-[8px] font-black uppercase tracking-wider">{group.label}</span>
+              </button>
+            );
+          })}
+          <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className={`px-5 flex flex-col items-center gap-0.5 py-2.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            {isDark ? <Moon size={19} className="text-blue-400"/> : <Sun size={19} className="text-orange-400"/>}
+            <span className="text-[8px] font-black uppercase tracking-wider">Tema</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }
