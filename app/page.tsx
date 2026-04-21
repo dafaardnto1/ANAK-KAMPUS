@@ -435,7 +435,7 @@ export default function Home() {
       const viewport = page.getViewport({ scale: 2.0 });
       const canvas   = document.createElement('canvas');
       canvas.width   = viewport.width; canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
+      await (page as any).render({ canvasContext: canvas.getContext('2d')!, canvas, viewport }).promise;
       const blob = await new Promise<Blob>(res => canvas.toBlob(b => res(b!), 'image/jpeg', 0.92));
       zip.file(`halaman-${String(i).padStart(3,'0')}.jpg`, blob);
     }
@@ -486,7 +486,7 @@ export default function Home() {
       const viewport = page.getViewport({ scale: 1.0 });
       const canvas   = document.createElement('canvas');
       canvas.width   = viewport.width; canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
+      await (page as any).render({ canvasContext: canvas.getContext('2d')!, canvas, viewport }).promise;
       const imgBytes = await fetch(canvas.toDataURL('image/jpeg', 0.6)).then(r => r.arrayBuffer());
       const img      = await newDoc.embedJpg(imgBytes);
       const pdfPage  = newDoc.addPage([viewport.width, viewport.height]);
