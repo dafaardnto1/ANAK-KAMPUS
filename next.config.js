@@ -20,9 +20,6 @@ const nextConfig = {
     unoptimized: true,
   },
 
-  // Matikan Turbopack, gunakan Webpack
-  turbopack: false,
-
   webpack: (config, { isServer }) => {
     // Handle 'canvas' module untuk pdfjs-dist
     config.resolve.alias = {

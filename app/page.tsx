@@ -1,4 +1,5 @@
 "use client";
+import React from 'react';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from "next-themes";
 import { useRouter } from 'next/navigation';
@@ -115,20 +116,36 @@ const MODE_CONFIG: Record<string, { accept: string; multi: boolean; label: strin
 };
 
 const getIcon = (iconName: string, size: number = 15) => {
-  const icons: Record<string, JSX.Element> = {
-    FileImage: <FileImage size={size} />, Layers: <Layers size={size} />,
-    FileText: <FileText size={size} />, FileSpreadsheet: <FileSpreadsheet size={size} />,
-    Images: <Images size={size} />, Table: <Table size={size} />, Merge: <Merge size={size} />,
-    Scissors: <Scissors size={size} />, Minimize2: <Minimize2 size={size} />,
-    Stamp: <Stamp size={size} />, Lock: <Lock size={size} />, Hash: <Hash size={size} />,
-    Info: <Info size={size} />, Settings2: <Settings2 size={size} />, PenLine: <PenLine size={size} />,
-    Shrink: <Shrink size={size} />, FileType: <FileType size={size} />, Maximize: <Maximize size={size} />,
-    GraduationCap: <GraduationCap size={size} />, Calculator: <Calculator size={size} />,
-    BookOpen: <BookOpen size={size} />, FileSignature: <FileSignature size={size} />,
-    CaseSensitive: <CaseSensitive size={size} />, Type: <Type size={size} />,
-    Palette: <Palette size={size} />, QrCode: <QrCode size={size} />, ScanText: <ScanText size={size} />,
+  const icons = {
+    FileImage: <FileImage size={size} />,
+    Layers: <Layers size={size} />,
+    FileText: <FileText size={size} />,
+    FileSpreadsheet: <FileSpreadsheet size={size} />,
+    Images: <Images size={size} />,
+    Table: <Table size={size} />,
+    Merge: <Merge size={size} />,
+    Scissors: <Scissors size={size} />,
+    Minimize2: <Minimize2 size={size} />,
+    Stamp: <Stamp size={size} />,
+    Lock: <Lock size={size} />,
+    Hash: <Hash size={size} />,
+    Info: <Info size={size} />,
+    Settings2: <Settings2 size={size} />,
+    PenLine: <PenLine size={size} />,
+    Shrink: <Shrink size={size} />,
+    FileType: <FileType size={size} />,
+    Maximize: <Maximize size={size} />,
+    GraduationCap: <GraduationCap size={size} />,
+    Calculator: <Calculator size={size} />,
+    BookOpen: <BookOpen size={size} />,
+    FileSignature: <FileSignature size={size} />,
+    CaseSensitive: <CaseSensitive size={size} />,
+    Type: <Type size={size} />,
+    Palette: <Palette size={size} />,
+    QrCode: <QrCode size={size} />,
+    ScanText: <ScanText size={size} />,
   };
-  return icons[iconName] || <FileImage size={size} />;
+  return icons[iconName as keyof typeof icons] || <FileImage size={size} />;
 };
 
 export default function Home() {
@@ -743,30 +760,30 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  // UI Components
-  const Field = ({ label, value, onChange, placeholder, type = 'text' }: any) => (
+  // UI Components - tanpa type annotation agar tidak konflik dengan JSX
+  const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
     <div>
       <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className={`w-full px-4 py-3 rounded-2xl text-sm font-medium outline-none border duration-200 focus:border-red-500
-          ${isDark ? 'bg-gray-900 border-gray-700 text-gray-100 placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400'}`} />
+        ${isDark ? 'bg-gray-900 border-gray-700 text-gray-100 placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400'}`} />
     </div>
   );
 
-  const Card = ({ children, className = '' }: any) => (
+  const Card = ({ children, className = '' }) => (
     <div className={`p-5 rounded-[2rem] border ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-200'} ${className}`}>
       {children}
     </div>
   );
 
-  const SectionLabel = ({ children, className = '' }: any) => (
+  const SectionLabel = ({ children, className = '' }) => (
     <p className={`text-[9px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'} ${className}`}>{children}</p>
   );
 
-  const DropZone = ({ onClick, label }: any) => (
+  const DropZone = ({ onClick, label }) => (
     <div onClick={onClick}
       className={`group h-52 rounded-[2.5rem] border-4 border-dashed flex flex-col items-center justify-center cursor-pointer duration-200 hover:border-red-500
-        ${isDark ? 'bg-[#0B0F1A] border-gray-800 hover:bg-red-950/10' : 'bg-white border-gray-200 hover:bg-red-50/20'}`}>
+      ${isDark ? 'bg-[#0B0F1A] border-gray-800 hover:bg-red-950/10' : 'bg-white border-gray-200 hover:bg-red-50/20'}`}>
       <div className="bg-red-600 p-4 rounded-2xl shadow-xl shadow-red-500/30 mb-3 text-white group-hover:scale-110 duration-200">
         <FileUp size={22} />
       </div>
