@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ANAK KAMPUS - Smart Converter",
-  description: "Solusi konversi dokumen mahasiswa Bekasi.",
+  description: "Website Generator File Online FreeTools.",
 };
 
 export default function RootLayout({
