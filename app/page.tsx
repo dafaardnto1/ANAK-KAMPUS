@@ -1,6 +1,5 @@
 "use client";
-import React from 'react';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from "next-themes";
 import { useRouter } from 'next/navigation';
 import { jsPDF } from 'jspdf';
@@ -16,54 +15,57 @@ import {
   FileImage, FileUp, Trash2, Download, Zap,
   FileText, FileSpreadsheet, Layers, Menu, Crown,
   Moon, Sun, Merge, Scissors, Minimize2,
-  Stamp, Lock, QrCode, ScanText, Plus, X,
+  Stamp, Lock, QrCode, ScanText, X,
   Hash, Info, Settings2, RotateCw, Table,
   Images, PenLine, LogOut, UserCircle,
   Eye, EyeOff, ArrowRight, Sparkles,
   Shrink, FileType, Maximize, GraduationCap,
   Calculator, BookOpen, CaseSensitive,
-  Palette, Type, Clipboard, FileSignature
+  Palette, Type, FileSignature, Plus,
+  ChevronRight, CheckCircle2, AlertCircle,
+  Copy, Check, Clipboard
 } from 'lucide-react';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface ImageItem { id: string; src: string; name: string; rotation: number; }
 interface PageItem { index: number; rotation: number; deleted: boolean; }
 interface IpkCourse { id: string; name: string; grade: string; credit: string; }
 interface PustakaEntry { id: string; author: string; year: string; title: string; pub: string; type: string; }
 
-// Static data outside component
+// ─── Static Data ──────────────────────────────────────────────────────────────
 const MENU_GROUPS = [
   {
-    label: 'Konversi', items: [
-      { id: 'PICTURE_TO_PDF', name: 'Picture to PDF', icon: 'FileImage' },
-      { id: 'WORD_TO_PDF', name: 'Word to PDF', icon: 'Layers' },
-      { id: 'PDF_TO_WORD', name: 'PDF to Word', icon: 'FileText' },
-      { id: 'TO_EXCEL', name: 'To Excel', icon: 'FileSpreadsheet' },
-      { id: 'PDF_TO_IMAGE', name: 'PDF to Image', icon: 'Images' },
-      { id: 'IMAGE_TO_EXCEL', name: 'Image to Excel (OCR)', icon: 'Table' },
+    label: 'Konversi', icon: 'FileImage', items: [
+      { id: 'PICTURE_TO_PDF', name: 'Picture → PDF', icon: 'FileImage' },
+      { id: 'WORD_TO_PDF', name: 'Word → PDF', icon: 'Layers' },
+      { id: 'PDF_TO_WORD', name: 'PDF → Word', icon: 'FileText' },
+      { id: 'TO_EXCEL', name: 'Dokumen → Excel', icon: 'FileSpreadsheet' },
+      { id: 'PDF_TO_IMAGE', name: 'PDF → Gambar', icon: 'Images' },
+      { id: 'IMAGE_TO_EXCEL', name: 'Gambar → Excel (OCR)', icon: 'Table' },
     ]
   },
   {
-    label: 'PDF Tools', items: [
-      { id: 'PDF_MERGER', name: 'PDF Merger', icon: 'Merge' },
-      { id: 'PDF_SPLITTER', name: 'PDF Splitter', icon: 'Scissors' },
-      { id: 'PDF_COMPRESSOR', name: 'PDF Compressor', icon: 'Minimize2' },
-      { id: 'ADD_WATERMARK', name: 'Add Watermark', icon: 'Stamp' },
-      { id: 'PROTECT_PDF', name: 'Protect PDF', icon: 'Lock' },
-      { id: 'PAGE_NUMBERING', name: 'Page Numbering', icon: 'Hash' },
-      { id: 'METADATA_EDITOR', name: 'Metadata Editor', icon: 'Info' },
-      { id: 'PAGE_ORGANIZER', name: 'Page Organizer', icon: 'Settings2' },
-      { id: 'ADD_SIGNATURE', name: 'Add Signature', icon: 'PenLine' },
+    label: 'PDF Tools', icon: 'Layers', items: [
+      { id: 'PDF_MERGER', name: 'Gabung PDF', icon: 'Merge' },
+      { id: 'PDF_SPLITTER', name: 'Potong PDF', icon: 'Scissors' },
+      { id: 'PDF_COMPRESSOR', name: 'Kompres PDF', icon: 'Minimize2' },
+      { id: 'ADD_WATERMARK', name: 'Watermark', icon: 'Stamp' },
+      { id: 'PROTECT_PDF', name: 'Proteksi PDF', icon: 'Lock' },
+      { id: 'PAGE_NUMBERING', name: 'Nomor Halaman', icon: 'Hash' },
+      { id: 'METADATA_EDITOR', name: 'Edit Metadata', icon: 'Info' },
+      { id: 'PAGE_ORGANIZER', name: 'Atur Halaman', icon: 'Settings2' },
+      { id: 'ADD_SIGNATURE', name: 'Tanda Tangan', icon: 'PenLine' },
     ]
   },
   {
-    label: 'Image Tools', items: [
+    label: 'Gambar', icon: 'Images', items: [
       { id: 'IMAGE_COMPRESSOR', name: 'Kompres Gambar', icon: 'Shrink' },
-      { id: 'IMAGE_CONVERTER', name: 'Format Converter', icon: 'FileType' },
+      { id: 'IMAGE_CONVERTER', name: 'Konversi Format', icon: 'FileType' },
       { id: 'IMAGE_RESIZER', name: 'Resize Gambar', icon: 'Maximize' },
     ]
   },
   {
-    label: 'Student', items: [
+    label: 'Mahasiswa', icon: 'GraduationCap', items: [
       { id: 'COVER_GENERATOR', name: 'Cover Makalah', icon: 'GraduationCap' },
       { id: 'IPK_CALCULATOR', name: 'Kalkulator IPK', icon: 'Calculator' },
       { id: 'PUSTAKA_GENERATOR', name: 'Daftar Pustaka', icon: 'BookOpen' },
@@ -71,83 +73,67 @@ const MENU_GROUPS = [
     ]
   },
   {
-    label: 'Text Tools', items: [
+    label: 'Teks & Warna', icon: 'Type', items: [
       { id: 'WORD_COUNTER', name: 'Hitung Kata', icon: 'CaseSensitive' },
       { id: 'LOREM_IPSUM', name: 'Lorem Ipsum', icon: 'Type' },
       { id: 'COLOR_PICKER', name: 'Color Picker', icon: 'Palette' },
     ]
   },
   {
-    label: 'Ekstra', items: [
+    label: 'Ekstra', icon: 'QrCode', items: [
       { id: 'QR_CODE', name: 'QR Code Generator', icon: 'QrCode' },
       { id: 'OCR', name: 'OCR Scan', icon: 'ScanText' },
     ]
   }
 ];
 
-const MODE_CONFIG: Record<string, { accept: string; multi: boolean; label: string; tip: string }> = {
-  PICTURE_TO_PDF: { accept: "image/*", multi: true, label: "Upload gambar (bisa banyak)", tip: "Urutan upload = urutan halaman PDF." },
-  WORD_TO_PDF: { accept: ".docx", multi: false, label: "Upload file .docx", tip: "Format tabel mungkin tidak terjaga." },
-  PDF_TO_WORD: { accept: ".pdf", multi: false, label: "Upload file .pdf", tip: "Kurang akurat untuk PDF berbasis scan/gambar." },
-  TO_EXCEL: { accept: ".docx,.pdf", multi: false, label: "Upload .pdf atau .docx", tip: "Cocok untuk dokumen teks berstruktur." },
-  PDF_TO_IMAGE: { accept: ".pdf", multi: false, label: "Upload file .pdf", tip: "Setiap halaman jadi JPG, didownload sebagai .zip." },
-  IMAGE_TO_EXCEL: { accept: "image/*", multi: false, label: "Upload foto/screenshot tabel", tip: "Foto terang & lurus = hasil lebih akurat." },
-  PDF_MERGER: { accept: ".pdf", multi: true, label: "Upload beberapa PDF", tip: "Urutan di daftar = urutan merge." },
-  PDF_SPLITTER: { accept: ".pdf", multi: false, label: "Upload PDF yang mau dipotong", tip: "Nomor halaman dimulai dari 1." },
-  PDF_COMPRESSOR: { accept: ".pdf", multi: false, label: "Upload PDF yang mau dikecilkan", tip: "Kualitas diturunkan ke ~60% (lossy)." },
-  ADD_WATERMARK: { accept: ".pdf", multi: false, label: "Upload PDF", tip: "Watermark diagonal 20% opacity di tiap halaman." },
-  PROTECT_PDF: { accept: ".pdf", multi: false, label: "Upload PDF", tip: "Proteksi metadata. Enkripsi penuh butuh Acrobat." },
-  PAGE_NUMBERING: { accept: ".pdf", multi: false, label: "Upload PDF yang mau diberi nomor", tip: "Nomor muncul di footer tiap halaman." },
-  METADATA_EDITOR: { accept: ".pdf", multi: false, label: "Upload PDF yang mau diedit metadata", tip: "Author, judul, subjek, keyword bisa diubah." },
+const MODE_CONFIG: Record<string, { accept: string; multi: boolean; label: string; tip: string; noFile?: boolean }> = {
+  PICTURE_TO_PDF: { accept: "image/*", multi: true, label: "Upload gambar (bisa banyak)", tip: "Urutan upload = urutan halaman PDF. Klik gambar untuk hapus." },
+  WORD_TO_PDF: { accept: ".docx", multi: false, label: "Upload file .docx", tip: "Teks dan format dasar akan dipertahankan." },
+  PDF_TO_WORD: { accept: ".pdf", multi: false, label: "Upload file .pdf", tip: "Teks akan diekstrak. PDF berbasis scan mungkin kurang akurat." },
+  TO_EXCEL: { accept: ".docx,.pdf", multi: false, label: "Upload .pdf atau .docx", tip: "Cocok untuk dokumen teks berstruktur dan tabel." },
+  PDF_TO_IMAGE: { accept: ".pdf", multi: false, label: "Upload file .pdf", tip: "Setiap halaman menjadi file JPG, diunduh sebagai .zip." },
+  IMAGE_TO_EXCEL: { accept: "image/*", multi: false, label: "Upload foto atau screenshot tabel", tip: "Foto terang & lurus = hasil OCR lebih akurat." },
+  PDF_MERGER: { accept: ".pdf", multi: true, label: "Upload beberapa PDF", tip: "Urutan di daftar = urutan saat digabung." },
+  PDF_SPLITTER: { accept: ".pdf", multi: false, label: "Upload PDF yang ingin dipotong", tip: "Masukkan nomor halaman dimulai dari 1." },
+  PDF_COMPRESSOR: { accept: ".pdf", multi: false, label: "Upload PDF untuk dikompres", tip: "Kualitas diturunkan ~60% untuk mengurangi ukuran file." },
+  ADD_WATERMARK: { accept: ".pdf", multi: false, label: "Upload PDF", tip: "Watermark diagonal transparan di setiap halaman." },
+  PROTECT_PDF: { accept: ".pdf", multi: false, label: "Upload PDF", tip: "Metadata proteksi akan ditambahkan ke file." },
+  PAGE_NUMBERING: { accept: ".pdf", multi: false, label: "Upload PDF untuk diberi nomor halaman", tip: "Nomor halaman muncul di footer setiap halaman." },
+  METADATA_EDITOR: { accept: ".pdf", multi: false, label: "Upload PDF untuk diedit metadata-nya", tip: "Judul, pengarang, subjek, dan kata kunci bisa diubah." },
   PAGE_ORGANIZER: { accept: ".pdf", multi: false, label: "Upload PDF untuk diatur halamannya", tip: "Hapus atau putar halaman tertentu sebelum disimpan." },
-  ADD_SIGNATURE: { accept: ".pdf", multi: false, label: "Upload PDF untuk ditandatangani", tip: "Gunakan PNG transparan untuk hasil terbaik." },
-  QR_CODE: { accept: "", multi: false, label: "Tidak perlu upload file", tip: "QR didownload sebagai PNG resolusi tinggi." },
-  OCR: { accept: "image/*", multi: false, label: "Upload foto/screenshot teks", tip: "Bahasa Indonesia & Inggris didukung." },
+  ADD_SIGNATURE: { accept: ".pdf", multi: false, label: "Upload PDF untuk ditandatangani", tip: "Gunakan PNG transparan untuk hasil tanda tangan terbaik." },
+  QR_CODE: { accept: "", multi: false, label: "Tidak perlu upload file", tip: "QR diunduh sebagai PNG resolusi tinggi 400×400.", noFile: true },
+  OCR: { accept: "image/*", multi: false, label: "Upload foto atau screenshot teks", tip: "Mendukung Bahasa Indonesia dan Inggris." },
   IMAGE_COMPRESSOR: { accept: "image/*", multi: false, label: "Upload gambar untuk dikompres", tip: "Mendukung JPG, PNG, WebP." },
-  IMAGE_CONVERTER: { accept: "image/*", multi: false, label: "Upload gambar untuk dikonversi", tip: "Hasil bisa diunduh dalam berbagai format." },
+  IMAGE_CONVERTER: { accept: "image/*", multi: false, label: "Upload gambar untuk dikonversi", tip: "Hasil bisa diunduh dalam format JPG, PNG, atau WebP." },
   IMAGE_RESIZER: { accept: "image/*", multi: false, label: "Upload gambar untuk di-resize", tip: "Masukkan lebar/tinggi dalam pixel." },
-  COVER_GENERATOR: { accept: "", multi: false, label: "Isi form untuk buat cover", tip: "Download langsung sebagai PDF A4." },
-  IPK_CALCULATOR: { accept: "", multi: false, label: "Masukkan nilai matkul kamu", tip: "IPK dihitung secara otomatis." },
-  PUSTAKA_GENERATOR: { accept: "", multi: false, label: "Input data sumber referensi", tip: "Format APA otomatis siap copas." },
-  SURAT_GENERATOR: { accept: "", multi: false, label: "Pilih template surat kamu", tip: "PDF surat resmi mahasiswa." },
-  WORD_COUNTER: { accept: "", multi: false, label: "Paste teks untuk dihitung", tip: "Hitung kata, karakter, dan estimasi baca." },
-  LOREM_IPSUM: { accept: "", multi: false, label: "Generate teks dummy", tip: "Atur jumlah paragraf yang dibutuhkan." },
-  COLOR_PICKER: { accept: "", multi: false, label: "Pilih warna untuk desain", tip: "Copy HEX, RGB, atau HSL dengan mudah." },
+  COVER_GENERATOR: { accept: "", multi: false, label: "Isi form untuk buat cover makalah", tip: "Diunduh langsung sebagai PDF A4 siap cetak.", noFile: true },
+  IPK_CALCULATOR: { accept: "", multi: false, label: "Masukkan nilai mata kuliah kamu", tip: "IPK dihitung secara otomatis dari nilai dan SKS.", noFile: true },
+  PUSTAKA_GENERATOR: { accept: "", multi: false, label: "Input data sumber referensi", tip: "Format APA otomatis, siap disalin.", noFile: true },
+  SURAT_GENERATOR: { accept: "", multi: false, label: "Pilih template surat", tip: "Surat resmi mahasiswa, diunduh sebagai PDF.", noFile: true },
+  WORD_COUNTER: { accept: "", multi: false, label: "Tempel teks untuk dihitung", tip: "Hitung kata, karakter, kalimat, dan estimasi waktu baca.", noFile: true },
+  LOREM_IPSUM: { accept: "", multi: false, label: "Generate teks dummy", tip: "Atur jumlah paragraf yang dibutuhkan.", noFile: true },
+  COLOR_PICKER: { accept: "", multi: false, label: "Pilih warna untuk desain", tip: "Salin HEX, RGB, atau HSL dengan satu klik.", noFile: true },
 };
 
-const getIcon = (iconName: string, size: number = 15) => {
-  const icons = {
-    FileImage: <FileImage size={size} />,
-    Layers: <Layers size={size} />,
-    FileText: <FileText size={size} />,
-    FileSpreadsheet: <FileSpreadsheet size={size} />,
-    Images: <Images size={size} />,
-    Table: <Table size={size} />,
-    Merge: <Merge size={size} />,
-    Scissors: <Scissors size={size} />,
-    Minimize2: <Minimize2 size={size} />,
-    Stamp: <Stamp size={size} />,
-    Lock: <Lock size={size} />,
-    Hash: <Hash size={size} />,
-    Info: <Info size={size} />,
-    Settings2: <Settings2 size={size} />,
-    PenLine: <PenLine size={size} />,
-    Shrink: <Shrink size={size} />,
-    FileType: <FileType size={size} />,
-    Maximize: <Maximize size={size} />,
-    GraduationCap: <GraduationCap size={size} />,
-    Calculator: <Calculator size={size} />,
-    BookOpen: <BookOpen size={size} />,
-    FileSignature: <FileSignature size={size} />,
-    CaseSensitive: <CaseSensitive size={size} />,
-    Type: <Type size={size} />,
-    Palette: <Palette size={size} />,
-    QrCode: <QrCode size={size} />,
-    ScanText: <ScanText size={size} />,
+const getIcon = (iconName: string, size = 15) => {
+  const map: Record<string, React.ReactNode> = {
+    FileImage: <FileImage size={size} />, Layers: <Layers size={size} />, FileText: <FileText size={size} />,
+    FileSpreadsheet: <FileSpreadsheet size={size} />, Images: <Images size={size} />, Table: <Table size={size} />,
+    Merge: <Merge size={size} />, Scissors: <Scissors size={size} />, Minimize2: <Minimize2 size={size} />,
+    Stamp: <Stamp size={size} />, Lock: <Lock size={size} />, Hash: <Hash size={size} />,
+    Info: <Info size={size} />, Settings2: <Settings2 size={size} />, PenLine: <PenLine size={size} />,
+    Shrink: <Shrink size={size} />, FileType: <FileType size={size} />, Maximize: <Maximize size={size} />,
+    GraduationCap: <GraduationCap size={size} />, Calculator: <Calculator size={size} />,
+    BookOpen: <BookOpen size={size} />, FileSignature: <FileSignature size={size} />,
+    CaseSensitive: <CaseSensitive size={size} />, Type: <Type size={size} />, Palette: <Palette size={size} />,
+    QrCode: <QrCode size={size} />, ScanText: <ScanText size={size} />,
   };
-  return icons[iconName as keyof typeof icons] || <FileImage size={size} />;
+  return map[iconName] ?? <FileImage size={size} />;
 };
 
+// ─── Main Component ────────────────────────────────────────────────────────────
 export default function Home() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -168,8 +154,10 @@ export default function Home() {
   const [singleFile, setSingleFile] = useState<File | null>(null);
   const [multiFiles, setMultiFiles] = useState<File[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [mobileCategory, setMobileCategory] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Mode-specific state
   const [ocrResult, setOcrResult] = useState('');
   const [ocrProgress, setOcrProgress] = useState(0);
   const [splitFrom, setSplitFrom] = useState('');
@@ -198,74 +186,60 @@ export default function Home() {
   const [resizeLock, setResizeLock] = useState(true);
   const [coverData, setCoverData] = useState({ title: '', sub: '', author: '', id: '', uni: '', year: new Date().getFullYear().toString() });
   const [ipkCourses, setIpkCourses] = useState<IpkCourse[]>([]);
+  const [ipkNew, setIpkNew] = useState({ name: '', grade: 'A', sks: '3' });
   const [pustakaEntries, setPustakaEntries] = useState<PustakaEntry[]>([]);
+  const [pustakaNew, setPustakaNew] = useState({ author: '', year: '', title: '', pub: '' });
   const [suratData, setSuratData] = useState({ type: 'IZIN', name: '', id: '', reason: '', date: '' });
   const [wordText, setWordText] = useState('');
   const [loremCount, setLoremCount] = useState(3);
   const [pickedColor, setPickedColor] = useState('#EF4444');
-  const [ipkNew, setIpkNew] = useState({ name: '', grade: 'A', sks: '3' });
-  const [pustakaNew, setPustakaNew] = useState({ author: '', year: '', title: '', pub: '' });
+  const [copiedColor, setCopiedColor] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const multiFileInputRef = useRef<HTMLInputElement>(null);
   const sigInputRef = useRef<HTMLInputElement>(null);
 
-  // Memoized derived values
+  // ─── Derived ─────────────────────────────────────────────────────────────────
+  const isDark = useMemo(() => resolvedTheme === 'dark', [resolvedTheme]);
   const isLoggedIn = useMemo(() => profile !== null, [profile]);
   const isPremium = useMemo(() => profile?.is_premium ?? false, [profile]);
   const MAX_QUOTA = useMemo(() => isPremium ? 500 : 30, [isPremium]);
   const downloadCount = useMemo(() => isLoggedIn ? (profile?.download_count ?? 0) : localCount, [isLoggedIn, profile, localCount]);
   const quotaFull = useMemo(() => downloadCount >= MAX_QUOTA, [downloadCount, MAX_QUOTA]);
   const cfg = useMemo(() => MODE_CONFIG[currentMode], [currentMode]);
-  const isDark = useMemo(() => resolvedTheme === 'dark', [resolvedTheme]);
+  const quotaPct = useMemo(() => Math.min((downloadCount / MAX_QUOTA) * 100, 100), [downloadCount, MAX_QUOTA]);
+  const currentItem = useMemo(() => MENU_GROUPS.flatMap(g => g.items).find(i => i.id === currentMode), [currentMode]);
 
-  // Auth functions
+  // ─── Toast ────────────────────────────────────────────────────────────────────
+  const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  // ─── Auth ─────────────────────────────────────────────────────────────────────
   const checkSession = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await loadProfile(user.id);
-        await checkReset(user.id);
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (data) {
+          setProfile(data);
+          const diffDays = Math.floor((Date.now() - new Date(data.last_reset).getTime()) / 86400000);
+          if (!data.is_premium && diffDays >= 15) {
+            await supabase.from('profiles').update({ download_count: 0, last_reset: new Date().toISOString() }).eq('id', user.id);
+            setProfile(prev => prev ? { ...prev, download_count: 0 } : null);
+          }
+        }
       }
-    } catch (e) {
-      console.warn('Supabase session check failed:', e);
-    }
+    } catch (e) { console.warn('Session check failed:', e); }
   }, []);
-
-  const loadProfile = useCallback(async (userId: string) => {
-    try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (data) setProfile(data);
-    } catch (e) {
-      console.warn('Failed to load profile:', e);
-    }
-  }, []);
-
-  const checkReset = useCallback(async (userId: string) => {
-    try {
-      const { data } = await supabase.from('profiles').select('last_reset, is_premium').eq('id', userId).single();
-      if (!data) return;
-      const diffDays = Math.floor((new Date().getTime() - new Date(data.last_reset).getTime()) / (1000 * 60 * 60 * 24));
-      if (!data.is_premium && diffDays >= 15) {
-        await supabase.from('profiles').update({ download_count: 0, last_reset: new Date().toISOString() }).eq('id', userId);
-        await loadProfile(userId);
-      }
-    } catch (e) {
-      console.warn('Failed to check reset:', e);
-    }
-  }, [loadProfile]);
 
   const resetLoginForm = useCallback(() => {
-    setLoginEmail(''); setLoginPassword('');
-    setLoginError(''); setLoginSuccess('');
-    setShowPass(false);
+    setLoginEmail(''); setLoginPassword(''); setLoginError(''); setLoginSuccess(''); setShowPass(false);
   }, []);
 
   const openLoginModal = useCallback((mode: 'login' | 'register' = 'login') => {
-    setLoginMode(mode);
-    resetLoginForm();
-    setShowLoginModal(true);
+    setLoginMode(mode); resetLoginForm(); setShowLoginModal(true);
   }, [resetLoginForm]);
 
   const handleLoginSubmit = useCallback(async () => {
@@ -279,68 +253,54 @@ export default function Home() {
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
         if (error) throw error;
-        if (data.user) {
-          await loadProfile(data.user.id);
-          await checkReset(data.user.id);
-        }
-        setShowLoginModal(false);
-        resetLoginForm();
+        if (data.user) await checkSession();
+        setShowLoginModal(false); resetLoginForm();
         router.push('/upgrade');
       }
-    } catch (e: any) {
-      setLoginError(e.message || 'Terjadi error');
-    } finally {
-      setLoginLoading(false);
-    }
-  }, [loginEmail, loginPassword, loginMode, loadProfile, checkReset, resetLoginForm, router]);
+    } catch (e: any) { setLoginError(e.message || 'Terjadi error'); }
+    finally { setLoginLoading(false); }
+  }, [loginEmail, loginPassword, loginMode, checkSession, resetLoginForm, router]);
 
   const handleLogout = useCallback(async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn('Logout error:', e);
-    }
-    setProfile(null);
-  }, []);
+    try { await supabase.auth.signOut(); } catch {}
+    setProfile(null); showToast('Berhasil keluar');
+  }, [showToast]);
 
-  // Finalize process
+  // ─── Finalize ─────────────────────────────────────────────────────────────────
   const finalizeProcess = useCallback(async () => {
     if (isLoggedIn && profile) {
       const newCount = (profile.download_count ?? 0) + 1;
-      try {
-        await supabase.from('profiles').update({ download_count: newCount }).eq('id', profile.id);
-      } catch (e) {
-        console.warn('Failed to update download count:', e);
-      }
+      try { await supabase.from('profiles').update({ download_count: newCount }).eq('id', profile.id); } catch {}
       setProfile(prev => prev ? { ...prev, download_count: newCount } : null);
     } else {
-      const newCount = localCount + 1;
-      setLocalCount(newCount);
-      localStorage.setItem('anak_kampus_quota', newCount.toString());
+      const nc = localCount + 1;
+      setLocalCount(nc);
+      localStorage.setItem('anak_kampus_quota', nc.toString());
     }
     setImages([]); setSingleFile(null); setMultiFiles([]);
-  }, [isLoggedIn, profile, localCount]);
+    showToast('File berhasil diproses & diunduh!');
+  }, [isLoggedIn, profile, localCount, showToast]);
 
   const saveBlob = useCallback(async (blob: Blob, filename: string) => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename; a.click();
+    URL.revokeObjectURL(a.href);
     await finalizeProcess();
   }, [finalizeProcess]);
 
-  // File handlers
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>, isMulti = false) => {
+  // ─── File Handlers ────────────────────────────────────────────────────────────
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
+    e.target.value = '';
     if (currentMode === 'PICTURE_TO_PDF') {
       files.forEach(file => {
         const reader = new FileReader();
-        reader.onloadend = () => setImages(prev => [...prev, {
-          id: Math.random().toString(), src: reader.result as string, name: file.name, rotation: 0
-        }]);
+        reader.onloadend = () => setImages(prev => [...prev, { id: Math.random().toString(36), src: reader.result as string, name: file.name, rotation: 0 }]);
         reader.readAsDataURL(file);
       });
-    } else if (isMulti || currentMode === 'PDF_MERGER') {
+    } else if (currentMode === 'PDF_MERGER') {
       setMultiFiles(prev => [...prev, ...files]);
     } else {
       setSingleFile(files[0]);
@@ -349,13 +309,14 @@ export default function Home() {
   }, [currentMode]);
 
   const loadOrganizerPages = useCallback(async (file: File) => {
-    const doc = await PDFDocument.load(await file.arrayBuffer());
-    const count = doc.getPageCount();
-    setOrganizerPages(Array.from({ length: count }, (_, i) => ({ index: i, rotation: 0, deleted: false })));
-    setOrganizerLoaded(true);
-  }, []);
+    try {
+      const doc = await PDFDocument.load(await file.arrayBuffer());
+      setOrganizerPages(Array.from({ length: doc.getPageCount() }, (_, i) => ({ index: i, rotation: 0, deleted: false })));
+      setOrganizerLoaded(true);
+    } catch { showToast('Gagal membaca halaman PDF', 'error'); }
+  }, [showToast]);
 
-  // Converter functions
+  // ─── Converter Functions ──────────────────────────────────────────────────────
   const handlePictureToPdf = useCallback(async () => {
     const pdf = new jsPDF();
     images.forEach((img, i) => {
@@ -369,7 +330,14 @@ export default function Home() {
   const handleWordToPdf = useCallback(async () => {
     const result = await mammoth.extractRawText({ arrayBuffer: await singleFile!.arrayBuffer() });
     const pdf = new jsPDF();
-    pdf.text(pdf.splitTextToSize(result.value, 180), 15, 15);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(12);
+    const lines = pdf.splitTextToSize(result.value, 180);
+    let y = 20;
+    lines.forEach((line: string) => {
+      if (y > 270) { pdf.addPage(); y = 20; }
+      pdf.text(line, 15, y); y += 7;
+    });
     pdf.save('ANAK_KAMPUS_WORD.pdf');
     await finalizeProcess();
   }, [singleFile, finalizeProcess]);
@@ -444,18 +412,18 @@ export default function Home() {
       const pages = await merged.copyPages(doc, doc.getPageIndices());
       pages.forEach(p => merged.addPage(p));
     }
-    await saveBlob(new Blob([await merged.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_MERGED.pdf');
+    await saveBlob(new Blob([await merged.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_MERGED.pdf');
   }, [multiFiles, saveBlob]);
 
   const handlePdfSplitter = useCallback(async () => {
     const from = parseInt(splitFrom) - 1, to = parseInt(splitTo) - 1;
-    if (isNaN(from) || isNaN(to) || from < 0 || to < from) { alert('Nomor halaman tidak valid!'); return; }
+    if (isNaN(from) || isNaN(to) || from < 0 || to < from) { showToast('Nomor halaman tidak valid!', 'error'); return; }
     const src = await PDFDocument.load(await singleFile!.arrayBuffer());
     const newDoc = await PDFDocument.create();
     const pages = await newDoc.copyPages(src, Array.from({ length: to - from + 1 }, (_, i) => from + i));
     pages.forEach(p => newDoc.addPage(p));
-    await saveBlob(new Blob([await newDoc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_SPLIT.pdf');
-  }, [splitFrom, splitTo, singleFile, saveBlob]);
+    await saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_SPLIT.pdf');
+  }, [splitFrom, splitTo, singleFile, saveBlob, showToast]);
 
   const handlePdfCompressor = useCallback(async () => {
     const pdfjsLib = await import('pdfjs-dist');
@@ -473,11 +441,11 @@ export default function Home() {
       const pdfPage = newDoc.addPage([viewport.width, viewport.height]);
       pdfPage.drawImage(img, { x: 0, y: 0, width: viewport.width, height: viewport.height });
     }
-    await saveBlob(new Blob([await newDoc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_COMPRESSED.pdf');
+    await saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_COMPRESSED.pdf');
   }, [singleFile, saveBlob]);
 
   const handleAddWatermark = useCallback(async () => {
-    if (!watermarkText.trim()) { alert('Isi teks watermark!'); return; }
+    if (!watermarkText.trim()) { showToast('Isi teks watermark!', 'error'); return; }
     const doc = await PDFDocument.load(await singleFile!.arrayBuffer());
     const font = await doc.embedFont(StandardFonts.HelveticaBold);
     doc.getPages().forEach(page => {
@@ -487,18 +455,17 @@ export default function Home() {
         size: 48, font, color: rgb(0.8, 0.1, 0.1), opacity: 0.2, rotate: degrees(45),
       });
     });
-    await saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_WATERMARKED.pdf');
-  }, [watermarkText, singleFile, saveBlob]);
+    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_WATERMARKED.pdf');
+  }, [watermarkText, singleFile, saveBlob, showToast]);
 
   const handleProtectPdf = useCallback(async () => {
-    if (!pdfPassword.trim()) { alert('Isi password!'); return; }
-    alert('⚠️ Enkripsi PDF penuh membutuhkan server-side. File akan disimpan dengan metadata proteksi.');
+    if (!pdfPassword.trim()) { showToast('Isi password terlebih dahulu!', 'error'); return; }
     const doc = await PDFDocument.load(await singleFile!.arrayBuffer());
     doc.setTitle(`PROTECTED - ${singleFile!.name}`);
     doc.setAuthor('ANAK KAMPUS');
     doc.setSubject(`Password hint: ${pdfPassword[0]}${'*'.repeat(pdfPassword.length - 1)}`);
-    await saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_PROTECTED.pdf');
-  }, [pdfPassword, singleFile, saveBlob]);
+    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_PROTECTED.pdf');
+  }, [pdfPassword, singleFile, saveBlob, showToast]);
 
   const handlePageNumbering = useCallback(async () => {
     const startNum = parseInt(pageNumberStart) || 1;
@@ -512,7 +479,7 @@ export default function Home() {
         : pageNumberPos === 'bottom-right' ? width - tWidth - 30 : 30;
       page.drawText(label, { x, y: 22, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
     });
-    await saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_NUMBERED.pdf');
+    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_NUMBERED.pdf');
   }, [pageNumberStart, singleFile, pageNumberPos, saveBlob]);
 
   const handleMetadataEditor = useCallback(async () => {
@@ -522,7 +489,7 @@ export default function Home() {
     if (metaSubject.trim()) doc.setSubject(metaSubject.trim());
     if (metaKeywords.trim()) doc.setKeywords([metaKeywords.trim()]);
     doc.setProducer('ANAK KAMPUS'); doc.setCreator('ANAK KAMPUS');
-    await saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_EDITED.pdf');
+    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_EDITED.pdf');
   }, [singleFile, metaTitle, metaAuthor, metaSubject, metaKeywords, saveBlob]);
 
   const handlePageOrganizer = useCallback(async () => {
@@ -534,11 +501,11 @@ export default function Home() {
       if (active[i].rotation !== 0) page.setRotation(degrees(active[i].rotation));
       newDoc.addPage(page);
     });
-    await saveBlob(new Blob([await newDoc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_ORGANIZED.pdf');
+    await saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_ORGANIZED.pdf');
   }, [singleFile, organizerPages, saveBlob]);
 
   const handleAddSignature = useCallback(async () => {
-    if (!sigFile) { alert('Upload gambar tanda tangan dulu!'); return; }
+    if (!sigFile) { showToast('Upload gambar tanda tangan dulu!', 'error'); return; }
     const sigUint8 = new Uint8Array(await sigFile.arrayBuffer());
     const isPng = sigFile.type === 'image/png' || sigFile.name.endsWith('.png');
     const doc = await PDFDocument.load(await singleFile!.arrayBuffer());
@@ -549,164 +516,192 @@ export default function Home() {
     const { height } = page.getSize();
     const w = parseInt(sigWidth) || 150;
     page.drawImage(sigImg, {
-      x: parseInt(sigX) || 50,
-      y: height - (parseInt(sigY) || 50) - (w * sigImg.height / sigImg.width),
+      x: parseInt(sigX) || 50, y: height - (parseInt(sigY) || 50) - (w * sigImg.height / sigImg.width),
       width: w, height: w * sigImg.height / sigImg.width
     });
-    await saveBlob(new Blob([await doc.save() as any], { type: 'application/pdf' }), 'ANAK_KAMPUS_SIGNED.pdf');
-  }, [sigFile, singleFile, sigPage, sigWidth, sigX, sigY, saveBlob]);
+    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_SIGNED.pdf');
+  }, [sigFile, singleFile, sigPage, sigWidth, sigX, sigY, saveBlob, showToast]);
 
   const handleOcr = useCallback(async () => {
     setOcrResult(''); setOcrProgress(0);
     const Tesseract = await import('tesseract.js');
-    const result = await (Tesseract as any).recognize(singleFile!, 'ind+eng', { logger: (m: any) => setOcrProgress(Math.round(m.progress * 100)) });
+    const result = await (Tesseract as any).recognize(singleFile!, 'ind+eng', {
+      logger: (m: any) => { if (m.status === 'recognizing text') setOcrProgress(Math.round(m.progress * 100)); }
+    });
     setOcrResult(result.data.text);
     await finalizeProcess();
   }, [singleFile, finalizeProcess]);
 
   const handleImageCompressor = useCallback(async () => {
-    if (!singleFile) return;
     const img = new Image();
-    img.src = URL.createObjectURL(singleFile);
-    await new Promise(resolve => img.onload = resolve);
+    img.src = URL.createObjectURL(singleFile!);
+    await new Promise(res => img.onload = res);
     const canvas = document.createElement('canvas');
     canvas.width = img.width; canvas.height = img.height;
     canvas.getContext('2d')?.drawImage(img, 0, 0);
-    canvas.toBlob(async (blob) => {
-      if (blob) {
-        await saveBlob(blob, `compressed_${singleFile.name.split('.')[0]}.jpg`);
-        await finalizeProcess();
-      }
+    URL.revokeObjectURL(img.src);
+    canvas.toBlob(async blob => {
+      if (blob) await saveBlob(blob, `compressed_${singleFile!.name.split('.')[0]}.jpg`);
     }, 'image/jpeg', compressQuality / 100);
-  }, [singleFile, compressQuality, saveBlob, finalizeProcess]);
+  }, [singleFile, compressQuality, saveBlob]);
 
   const handleImageConverter = useCallback(async () => {
-    if (!singleFile) return;
     const img = new Image();
-    img.src = URL.createObjectURL(singleFile);
-    await new Promise(resolve => img.onload = resolve);
+    img.src = URL.createObjectURL(singleFile!);
+    await new Promise(res => img.onload = res);
     const canvas = document.createElement('canvas');
     canvas.width = img.width; canvas.height = img.height;
     canvas.getContext('2d')?.drawImage(img, 0, 0);
+    URL.revokeObjectURL(img.src);
     const mime = `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`;
-    canvas.toBlob(async (blob) => {
-      if (blob) {
-        await saveBlob(blob, `converted_${singleFile.name.split('.')[0]}.${targetFormat}`);
-        await finalizeProcess();
-      }
+    canvas.toBlob(async blob => {
+      if (blob) await saveBlob(blob, `converted_${singleFile!.name.split('.')[0]}.${targetFormat}`);
     }, mime, 0.9);
-  }, [singleFile, targetFormat, saveBlob, finalizeProcess]);
+  }, [singleFile, targetFormat, saveBlob]);
 
   const handleImageResizer = useCallback(async () => {
-    if (!singleFile) return;
     const img = new Image();
-    img.src = URL.createObjectURL(singleFile);
-    await new Promise(resolve => img.onload = resolve);
-    const canvas = document.createElement('canvas');
+    img.src = URL.createObjectURL(singleFile!);
+    await new Promise(res => img.onload = res);
     const w = parseInt(resizeWidth) || img.width;
-    const h = parseInt(resizeHeight) || (resizeLock ? (img.height * w) / img.width : img.height);
+    const h = parseInt(resizeHeight) || (resizeLock ? Math.round(img.height * w / img.width) : img.height);
+    const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
-    canvas.toBlob(async (blob) => {
-      if (blob) {
-        await saveBlob(blob, `resized_${singleFile.name}`);
-        await finalizeProcess();
-      }
-    }, singleFile.type, 0.9);
-  }, [singleFile, resizeWidth, resizeHeight, resizeLock, saveBlob, finalizeProcess]);
+    URL.revokeObjectURL(img.src);
+    canvas.toBlob(async blob => {
+      if (blob) await saveBlob(blob, `resized_${singleFile!.name}`);
+    }, singleFile!.type, 0.9);
+  }, [singleFile, resizeWidth, resizeHeight, resizeLock, saveBlob]);
 
   const handleCoverGenerator = useCallback(async () => {
     const doc = new jsPDF();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(22); doc.text(coverData.uni.toUpperCase(), 105, 40, { align: 'center' });
-    doc.setFontSize(18); doc.text('MAKALAH', 105, 80, { align: 'center' });
-    doc.setLineWidth(0.5); doc.line(40, 85, 170, 85);
-    doc.setFontSize(16); doc.text(coverData.title.toUpperCase(), 105, 100, { align: 'center', maxWidth: 140 });
-    if (coverData.sub) { doc.setFontSize(12); doc.setFont('helvetica', 'normal'); doc.text(coverData.sub, 105, 115, { align: 'center', maxWidth: 140 }); }
-    doc.setFont('helvetica', 'bold'); doc.text('DISUSUN OLEH:', 105, 160, { align: 'center' });
-    doc.setFont('helvetica', 'normal'); doc.text(`${coverData.author}\n(${coverData.id})`, 105, 170, { align: 'center' });
-    doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text(coverData.year, 105, 250, { align: 'center' });
-    doc.save(`Cover_${coverData.title.substring(0, 10)}.pdf`);
+    doc.setFillColor(220, 38, 38); doc.rect(0, 0, 210, 12, 'F');
+    doc.setFillColor(220, 38, 38); doc.rect(0, 285, 210, 12, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+    doc.setFontSize(20); doc.text(coverData.uni.toUpperCase() || 'NAMA UNIVERSITAS', 105, 40, { align: 'center' });
+    doc.setLineWidth(0.5); doc.setDrawColor(220, 38, 38); doc.line(30, 48, 180, 48);
+    doc.setFontSize(14); doc.text('MAKALAH', 105, 65, { align: 'center' });
+    doc.setLineWidth(0.3); doc.line(60, 70, 150, 70);
+    doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+    const titleLines = doc.splitTextToSize(coverData.title.toUpperCase() || 'JUDUL MAKALAH', 150);
+    doc.text(titleLines, 105, 90, { align: 'center' });
+    if (coverData.sub) {
+      doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+      doc.text(coverData.sub, 105, 90 + titleLines.length * 8 + 6, { align: 'center', maxWidth: 140 });
+    }
+    doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+    doc.text('Disusun oleh:', 105, 165, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30); doc.setFontSize(13);
+    doc.text(coverData.author || 'Nama Mahasiswa', 105, 175, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(80, 80, 80);
+    if (coverData.id) doc.text(`NIM: ${coverData.id}`, 105, 183, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
+    doc.text(coverData.year, 105, 250, { align: 'center' });
+    doc.save(`Cover_Makalah.pdf`);
     await finalizeProcess();
   }, [coverData, finalizeProcess]);
 
   const handleIpkCalculator = useCallback(async () => {
+    if (ipkCourses.length === 0) { showToast('Tambahkan minimal 1 mata kuliah!', 'error'); return; }
+    const gradeMap: Record<string, number> = { 'A': 4, 'A-': 3.7, 'B+': 3.3, 'B': 3, 'B-': 2.7, 'C+': 2.3, 'C': 2, 'D': 1, 'E': 0 };
+    const totalSks = ipkCourses.reduce((s, c) => s + (parseInt(c.credit) || 0), 0);
+    const totalPoint = ipkCourses.reduce((s, c) => s + ((gradeMap[c.grade] ?? 0) * (parseInt(c.credit) || 0)), 0);
+    const ipk = totalSks ? (totalPoint / totalSks).toFixed(2) : '0.00';
     const doc = new jsPDF();
-    const totalCredit = ipkCourses.reduce((sum, c) => sum + (parseInt(c.credit) || 0), 0);
-    const gradeMap: any = { 'A': 4, 'B': 3, 'C': 2, 'D': 1, 'E': 0 };
-    const totalPoint = ipkCourses.reduce((sum, c) => sum + (gradeMap[c.grade] * (parseInt(c.credit) || 0)), 0);
-    const ipk = totalCredit ? (totalPoint / totalCredit).toFixed(2) : '0.00';
-    doc.setFontSize(20); doc.text('LAPORAN ESTIMASI IPK', 105, 20, { align: 'center' });
-    doc.setFontSize(12); let y = 40;
-    ipkCourses.forEach((c, i) => { doc.text(`${i + 1}. ${c.name} - Grade: ${c.grade} (${c.credit} SKS)`, 20, y); y += 10; });
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text(`TOTAL IPK: ${ipk}`, 20, y + 10);
+    doc.setFillColor(220, 38, 38); doc.rect(0, 0, 210, 35, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+    doc.text('LAPORAN ESTIMASI IPK', 105, 20, { align: 'center' });
+    doc.setFontSize(11); doc.text('ANAK KAMPUS — Kalkulator IPK', 105, 28, { align: 'center' });
+    doc.setTextColor(30, 30, 30); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+    let y = 50;
+    ipkCourses.forEach((c, i) => {
+      const bg = i % 2 === 0 ? 245 : 255;
+      doc.setFillColor(bg, bg, bg); doc.rect(15, y - 5, 180, 9, 'F');
+      doc.text(`${i + 1}. ${c.name}`, 18, y);
+      doc.text(`Nilai: ${c.grade}`, 130, y);
+      doc.text(`SKS: ${c.credit}`, 165, y);
+      y += 10;
+    });
+    y += 5;
+    doc.setFillColor(220, 38, 38); doc.rect(15, y, 180, 18, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+    doc.text(`Total SKS: ${totalSks}   |   IPK: ${ipk}`, 105, y + 12, { align: 'center' });
     doc.save('Estimasi_IPK.pdf');
     await finalizeProcess();
-  }, [ipkCourses, finalizeProcess]);
+  }, [ipkCourses, finalizeProcess, showToast]);
 
   const handlePustakaGenerator = useCallback(async () => {
-    const content = pustakaEntries.map(e => `${e.author}. (${e.year}). ${e.title}. ${e.pub}.`).join('\n\n');
-    const blob = new Blob([content], { type: 'text/plain' });
-    await saveBlob(blob, 'Daftar_Pustaka.txt');
-  }, [pustakaEntries, saveBlob]);
+    if (pustakaEntries.length === 0) { showToast('Tambahkan minimal 1 referensi!', 'error'); return; }
+    const content = pustakaEntries
+      .sort((a, b) => a.author.localeCompare(b.author))
+      .map(e => `${e.author}. (${e.year}). ${e.title}. ${e.pub}.`)
+      .join('\n\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    await saveBlob(blob, 'Daftar_Pustaka_APA.txt');
+  }, [pustakaEntries, saveBlob, showToast]);
 
   const handleSuratGenerator = useCallback(async () => {
     const doc = new jsPDF();
-    doc.setFontSize(14); doc.setFont('times', 'bold');
-    doc.text('SURAT KETERANGAN MAHASISWA', 105, 30, { align: 'center' });
-    doc.setFont('times', 'normal'); doc.setFontSize(12);
+    doc.setFillColor(220, 38, 38); doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('times', 'bold'); doc.setFontSize(14);
+    doc.text('SURAT KETERANGAN MAHASISWA', 105, 18, { align: 'center' });
+    doc.setTextColor(30, 30, 30); doc.setFont('times', 'normal'); doc.setFontSize(12);
+    doc.text(`Bekasi, ${suratData.date || new Date().toLocaleDateString('id-ID')}`, 150, 45);
     const text = suratData.type === 'IZIN'
-      ? `Saya yang bertanda tangan di bawah ini:\n\nNama: ${suratData.name}\nNIM: ${suratData.id}\n\nMenyatakan bahwa saya tidak dapat mengikuti perkuliahan pada tanggal ${suratData.date} dikarenakan ${suratData.reason}.\n\nDemikian surat ini saya buat dengan sebenar-benarnya.`
-      : `Kepada Yth. Bagian Akademik,\n\nSaya ${suratData.name} (NIM: ${suratData.id}) memohon untuk ${suratData.reason}.\n\nTerima kasih atas perhatiannya.`;
-    doc.text(doc.splitTextToSize(text, 170), 20, 50);
-    doc.text(`Bekasi, ${new Date().toLocaleDateString('id-ID')}\n\n\n\n( ${suratData.name} )`, 130, 150);
+      ? `Saya yang bertanda tangan di bawah ini:\n\nNama   : ${suratData.name}\nNIM    : ${suratData.id}\n\nDengan ini menyatakan bahwa saya tidak dapat mengikuti perkuliahan pada tanggal ${suratData.date} dikarenakan ${suratData.reason}.\n\nDemikian surat pernyataan ini saya buat dengan sebenar-benarnya. Atas perhatian Bapak/Ibu dosen, saya ucapkan terima kasih.`
+      : `Kepada Yth.\nBapak/Ibu Dosen\nDi tempat\n\nDengan hormat,\n\nSaya yang bertanda tangan di bawah ini:\n\nNama   : ${suratData.name}\nNIM    : ${suratData.id}\n\nDengan ini memohon untuk ${suratData.reason}.\n\nDemikian permohonan ini saya sampaikan. Atas perhatian dan kebijaksanaan Bapak/Ibu, saya ucapkan terima kasih.`;
+    const lines = doc.splitTextToSize(text, 170);
+    doc.text(lines, 20, 60);
+    const signY = 200;
+    doc.text('Hormat saya,', 140, signY);
+    doc.text('\n\n\n', 140, signY + 5);
+    doc.text(`( ${suratData.name} )`, 140, signY + 30);
     doc.save(`Surat_${suratData.type}.pdf`);
     await finalizeProcess();
   }, [suratData, finalizeProcess]);
 
-  const handleWordCounter = useCallback(async () => {
-    const blob = new Blob([`Statistik Teks:\n\n${wordText}\n\nKata: ${wordText.trim().split(/\s+/).length}\nKarakter: ${wordText.length}`], { type: 'text/plain' });
-    await saveBlob(blob, 'Statistik_Teks.txt');
-  }, [wordText, saveBlob]);
+  const handleWordCounter = useCallback(() => {
+    // Just display results inline, no download needed
+    showToast('Analisis teks selesai!');
+  }, [showToast]);
 
   const handleLoremIpsum = useCallback(async () => {
-    const dummy = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ";
-    const content = Array(loremCount).fill(dummy).join('\n\n');
-    const blob = new Blob([content], { type: 'text/plain' });
+    const dummy = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.";
+    const blob = new Blob([Array(loremCount).fill(dummy).join('\n\n')], { type: 'text/plain' });
     await saveBlob(blob, 'Lorem_Ipsum.txt');
   }, [loremCount, saveBlob]);
 
   const handleColorPicker = useCallback(async () => {
     await navigator.clipboard.writeText(pickedColor);
-    alert(`Warna ${pickedColor} berhasil disalin ke clipboard!`);
+    setCopiedColor(pickedColor);
+    setTimeout(() => setCopiedColor(''), 2000);
+    showToast(`Warna ${pickedColor} disalin!`);
     await finalizeProcess();
-  }, [pickedColor, finalizeProcess]);
+  }, [pickedColor, finalizeProcess, showToast]);
 
   const handleQrCode = useCallback(async () => {
-    if (!qrContent.trim()) { alert('Isi konten QR!'); return; }
-    const url = await QRCode.toDataURL(qrContent, { width: 400, margin: 2 });
+    if (!qrContent.trim()) { showToast('Isi konten QR!', 'error'); return; }
+    const url = await QRCode.toDataURL(qrContent, { width: 400, margin: 2, color: { dark: '#000', light: '#fff' } });
     const link = document.createElement('a');
     link.href = url; link.download = 'ANAK_KAMPUS_QR.png'; link.click();
     await finalizeProcess();
-  }, [qrContent, finalizeProcess]);
+  }, [qrContent, finalizeProcess, showToast]);
 
   const handleQrPreview = useCallback(async () => {
     if (!qrContent.trim()) return;
     setQrPreview(await QRCode.toDataURL(qrContent, { width: 200, margin: 2 }));
   }, [qrContent]);
 
+  // ─── Reset ────────────────────────────────────────────────────────────────────
   const resetState = useCallback(() => {
     setImages([]); setSingleFile(null); setMultiFiles([]);
-    setOcrResult(''); setOcrProgress(0);
-    setSplitFrom(''); setSplitTo('');
-    setWatermarkText(''); setPdfPassword('');
-    setQrContent(''); setQrPreview('');
+    setOcrResult(''); setOcrProgress(0); setSplitFrom(''); setSplitTo('');
+    setWatermarkText(''); setPdfPassword(''); setQrContent(''); setQrPreview('');
     setPageNumberStart('1'); setPageNumberPos('bottom-center');
     setMetaTitle(''); setMetaAuthor(''); setMetaSubject(''); setMetaKeywords('');
-    setOrganizerPages([]); setOrganizerLoaded(false);
-    setSigFile(null);
-    setCompressQuality(80); setTargetFormat('jpeg');
-    setResizeWidth('1080'); setResizeHeight(''); setResizeLock(true);
+    setOrganizerPages([]); setOrganizerLoaded(false); setSigFile(null);
+    setCompressQuality(80); setTargetFormat('jpeg'); setResizeWidth('1080'); setResizeHeight(''); setResizeLock(true);
     setCoverData({ title: '', sub: '', author: '', id: '', uni: '', year: new Date().getFullYear().toString() });
     setIpkCourses([]); setPustakaEntries([]);
     setSuratData({ type: 'IZIN', name: '', id: '', reason: '', date: '' });
@@ -721,36 +716,40 @@ export default function Home() {
     if (currentMode === 'QR_CODE') return qrContent.trim().length > 0;
     if (currentMode === 'PAGE_ORGANIZER') return organizerLoaded && organizerPages.some(p => !p.deleted);
     if (currentMode === 'ADD_SIGNATURE') return singleFile !== null && sigFile !== null;
-    if (['COVER_GENERATOR', 'IPK_CALCULATOR', 'PUSTAKA_GENERATOR', 'SURAT_GENERATOR', 'WORD_COUNTER', 'LOREM_IPSUM', 'COLOR_PICKER'].includes(currentMode)) return true;
+    if (cfg.noFile) return true;
     return singleFile !== null;
-  }, [currentMode, images.length, multiFiles.length, qrContent, organizerLoaded, organizerPages, singleFile, sigFile]);
+  }, [currentMode, images.length, multiFiles.length, qrContent, organizerLoaded, organizerPages, singleFile, sigFile, cfg]);
 
   const handleMainAction = useCallback(async () => {
     if (quotaFull) { openLoginModal('login'); return; }
     setIsProcessing(true);
     try {
-      const map: Record<string, () => Promise<void>> = {
-        PICTURE_TO_PDF: handlePictureToPdf, WORD_TO_PDF: handleWordToPdf,
-        PDF_TO_WORD: handlePdfToWord, TO_EXCEL: handleToExcel,
-        PDF_TO_IMAGE: handlePdfToImage, IMAGE_TO_EXCEL: handleImageToExcel,
-        PDF_MERGER: handlePdfMerger, PDF_SPLITTER: handlePdfSplitter,
-        PDF_COMPRESSOR: handlePdfCompressor, ADD_WATERMARK: handleAddWatermark,
-        PROTECT_PDF: handleProtectPdf, PAGE_NUMBERING: handlePageNumbering,
+      const map: Record<string, () => Promise<void> | void> = {
+        PICTURE_TO_PDF: handlePictureToPdf, WORD_TO_PDF: handleWordToPdf, PDF_TO_WORD: handlePdfToWord,
+        TO_EXCEL: handleToExcel, PDF_TO_IMAGE: handlePdfToImage, IMAGE_TO_EXCEL: handleImageToExcel,
+        PDF_MERGER: handlePdfMerger, PDF_SPLITTER: handlePdfSplitter, PDF_COMPRESSOR: handlePdfCompressor,
+        ADD_WATERMARK: handleAddWatermark, PROTECT_PDF: handleProtectPdf, PAGE_NUMBERING: handlePageNumbering,
         METADATA_EDITOR: handleMetadataEditor, PAGE_ORGANIZER: handlePageOrganizer,
         ADD_SIGNATURE: handleAddSignature, QR_CODE: handleQrCode, OCR: handleOcr,
         IMAGE_COMPRESSOR: handleImageCompressor, IMAGE_CONVERTER: handleImageConverter, IMAGE_RESIZER: handleImageResizer,
-        COVER_GENERATOR: handleCoverGenerator, IPK_CALCULATOR: handleIpkCalculator, PUSTAKA_GENERATOR: handlePustakaGenerator,
-        SURAT_GENERATOR: handleSuratGenerator, WORD_COUNTER: handleWordCounter, LOREM_IPSUM: handleLoremIpsum,
-        COLOR_PICKER: handleColorPicker,
+        COVER_GENERATOR: handleCoverGenerator, IPK_CALCULATOR: handleIpkCalculator,
+        PUSTAKA_GENERATOR: handlePustakaGenerator, SURAT_GENERATOR: handleSuratGenerator,
+        WORD_COUNTER: handleWordCounter, LOREM_IPSUM: handleLoremIpsum, COLOR_PICKER: handleColorPicker,
       };
       await map[currentMode]?.();
     } catch (e) {
-      console.error(e); alert('Terjadi error. Coba lagi!');
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [quotaFull, openLoginModal, currentMode, handlePictureToPdf, handleWordToPdf, handlePdfToWord, handleToExcel, handlePdfToImage, handleImageToExcel, handlePdfMerger, handlePdfSplitter, handlePdfCompressor, handleAddWatermark, handleProtectPdf, handlePageNumbering, handleMetadataEditor, handlePageOrganizer, handleAddSignature, handleQrCode, handleOcr, handleImageCompressor, handleImageConverter, handleImageResizer, handleCoverGenerator, handleIpkCalculator, handlePustakaGenerator, handleSuratGenerator, handleWordCounter, handleLoremIpsum, handleColorPicker]);
+      console.error(e);
+      showToast('Terjadi kesalahan. Coba lagi!', 'error');
+    } finally { setIsProcessing(false); }
+  }, [quotaFull, openLoginModal, currentMode, handlePictureToPdf, handleWordToPdf, handlePdfToWord,
+    handleToExcel, handlePdfToImage, handleImageToExcel, handlePdfMerger, handlePdfSplitter,
+    handlePdfCompressor, handleAddWatermark, handleProtectPdf, handlePageNumbering, handleMetadataEditor,
+    handlePageOrganizer, handleAddSignature, handleQrCode, handleOcr, handleImageCompressor,
+    handleImageConverter, handleImageResizer, handleCoverGenerator, handleIpkCalculator,
+    handlePustakaGenerator, handleSuratGenerator, handleWordCounter, handleLoremIpsum,
+    handleColorPicker, showToast]);
 
+  // ─── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('anak_kampus_quota');
@@ -758,223 +757,746 @@ export default function Home() {
     checkSession();
   }, [checkSession]);
 
+  // ─── Word Counter Stats ───────────────────────────────────────────────────────
+  const wordStats = useMemo(() => {
+    if (!wordText.trim()) return { words: 0, chars: 0, sentences: 0, readTime: 0 };
+    const words = wordText.trim().split(/\s+/).length;
+    const chars = wordText.length;
+    const sentences = wordText.split(/[.!?]+/).filter(s => s.trim()).length;
+    const readTime = Math.ceil(words / 200);
+    return { words, chars, sentences, readTime };
+  }, [wordText]);
+
   if (!mounted) return null;
 
-  // UI Components - tanpa type annotation agar tidak konflik dengan JSX
-  const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
-    <div>
-      <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className={`w-full px-4 py-3 rounded-2xl text-sm font-medium outline-none border duration-200 focus:border-red-500
-        ${isDark ? 'bg-gray-900 border-gray-700 text-gray-100 placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400'}`} />
-    </div>
-  );
+  // ─── Color helpers ────────────────────────────────────────────────────────────
+  const hexToRgb = (hex: string) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+  const hexToHsl = (hex: string) => {
+    let r = parseInt(hex.slice(1, 3), 16) / 255;
+    let g = parseInt(hex.slice(3, 5), 16) / 255;
+    let b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+    return `hsl(${Math.round(h * 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
+  };
 
-  const Card = ({ children, className = '' }) => (
-    <div className={`p-5 rounded-[2rem] border ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-200'} ${className}`}>
-      {children}
-    </div>
-  );
+  // ─── UI Helpers ───────────────────────────────────────────────────────────────
+  const inputCls = `w-full px-3.5 py-2.5 rounded-xl text-sm outline-none border transition-colors duration-150
+    ${isDark ? 'bg-gray-900 border-gray-700 text-gray-100 placeholder-gray-600 focus:border-red-500'
+      : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-red-500'}`;
 
-  const SectionLabel = ({ children, className = '' }) => (
-    <p className={`text-[9px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'} ${className}`}>{children}</p>
-  );
+  const labelCls = `block text-[10px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`;
 
-  const DropZone = ({ onClick, label }) => (
-    <div onClick={onClick}
-      className={`group h-52 rounded-[2.5rem] border-4 border-dashed flex flex-col items-center justify-center cursor-pointer duration-200 hover:border-red-500
-      ${isDark ? 'bg-[#0B0F1A] border-gray-800 hover:bg-red-950/10' : 'bg-white border-gray-200 hover:bg-red-50/20'}`}>
-      <div className="bg-red-600 p-4 rounded-2xl shadow-xl shadow-red-500/30 mb-3 text-white group-hover:scale-110 duration-200">
-        <FileUp size={22} />
-      </div>
-      <p className="font-black uppercase text-xs">{label ?? cfg.label}</p>
-      <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{cfg.accept || 'no file needed'}</p>
-    </div>
-  );
+  const cardCls = `rounded-2xl border p-4 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white border-gray-100'}`;
 
-  return (
-    <div className={`flex min-h-screen duration-300 ${isDark ? 'bg-[#050810] text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Login Modal */}
-      {showLoginModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className={`w-full max-w-sm rounded-[2.5rem] border shadow-2xl p-8 relative ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-200'}`}>
-            <button onClick={() => { setShowLoginModal(false); resetLoginForm(); }} className={`absolute top-5 right-5 p-2 rounded-xl duration-200 ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
-              <X size={16} />
+  // ─── Render Mode-Specific UI ──────────────────────────────────────────────────
+  const renderModeUI = () => {
+    switch (currentMode) {
+      case 'PDF_SPLITTER':
+        return (
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div><label className={labelCls}>Dari Halaman</label>
+              <input className={inputCls} type="number" min="1" placeholder="1" value={splitFrom} onChange={e => setSplitFrom(e.target.value)} /></div>
+            <div><label className={labelCls}>Sampai Halaman</label>
+              <input className={inputCls} type="number" min="1" placeholder="5" value={splitTo} onChange={e => setSplitTo(e.target.value)} /></div>
+          </div>
+        );
+      case 'ADD_WATERMARK':
+        return (
+          <div className="mt-3"><label className={labelCls}>Teks Watermark</label>
+            <input className={inputCls} placeholder="RAHASIA / DRAFT / nama kamu..." value={watermarkText} onChange={e => setWatermarkText(e.target.value)} /></div>
+        );
+      case 'PROTECT_PDF':
+        return (
+          <div className="mt-3"><label className={labelCls}>Password Proteksi</label>
+            <input className={inputCls} type="password" placeholder="Masukkan password..." value={pdfPassword} onChange={e => setPdfPassword(e.target.value)} /></div>
+        );
+      case 'PAGE_NUMBERING':
+        return (
+          <div className="mt-3 space-y-3">
+            <div><label className={labelCls}>Mulai dari nomor</label>
+              <input className={inputCls} type="number" min="1" value={pageNumberStart} onChange={e => setPageNumberStart(e.target.value)} /></div>
+            <div><label className={labelCls}>Posisi</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['bottom-left', 'bottom-center', 'bottom-right'] as const).map(pos => (
+                  <button key={pos} onClick={() => setPageNumberPos(pos)}
+                    className={`py-2 rounded-xl text-[10px] font-bold border transition-all ${pageNumberPos === pos
+                      ? 'bg-red-600 text-white border-red-600' : isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                    {pos === 'bottom-left' ? 'Kiri' : pos === 'bottom-center' ? 'Tengah' : 'Kanan'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      case 'METADATA_EDITOR':
+        return (
+          <div className="mt-3 space-y-2.5">
+            {[['Judul', metaTitle, setMetaTitle], ['Pengarang', metaAuthor, setMetaAuthor],
+              ['Subjek', metaSubject, setMetaSubject], ['Kata Kunci', metaKeywords, setMetaKeywords]].map(([lbl, val, set]: any) => (
+              <div key={lbl}><label className={labelCls}>{lbl}</label>
+                <input className={inputCls} placeholder={`Masukkan ${lbl.toLowerCase()}...`} value={val} onChange={e => set(e.target.value)} /></div>
+            ))}
+          </div>
+        );
+      case 'PAGE_ORGANIZER':
+        return organizerLoaded ? (
+          <div className="mt-3 space-y-2">
+            {organizerPages.map((pg, idx) => (
+              <div key={idx} className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-sm ${pg.deleted
+                ? isDark ? 'opacity-30 bg-red-900/20 border-red-800' : 'opacity-30 bg-red-50 border-red-100'
+                : isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'}`}>
+                <span className={`text-xs font-bold w-6 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{idx + 1}</span>
+                <span className="flex-1 text-xs font-medium">Halaman {pg.index + 1}</span>
+                <button onClick={() => setOrganizerPages(prev => prev.map((p, i) => i === idx ? { ...p, rotation: (p.rotation + 90) % 360 } : p))}
+                  className={`p-1.5 rounded-lg ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`} title={`Putar (${pg.rotation}°)`}>
+                  <RotateCw size={13} />
+                </button>
+                <button onClick={() => setOrganizerPages(prev => prev.map((p, i) => i === idx ? { ...p, deleted: !p.deleted } : p))}
+                  className={`p-1.5 rounded-lg ${pg.deleted ? 'text-red-500' : isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null;
+      case 'ADD_SIGNATURE':
+        return (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className={labelCls}>Upload Gambar Tanda Tangan</label>
+              <button onClick={() => sigInputRef.current?.click()}
+                className={`w-full py-2.5 rounded-xl border text-xs font-bold text-left px-3.5 transition-colors ${isDark ? 'border-gray-700 text-gray-400 hover:border-gray-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                {sigFile ? sigFile.name : '📎 Pilih file PNG/JPG...'}
+              </button>
+              <input ref={sigInputRef} type="file" hidden accept="image/*" onChange={e => setSigFile(e.target.files?.[0] ?? null)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[['Halaman', sigPage, setSigPage], ['Lebar (px)', sigWidth, setSigWidth],
+                ['X (px)', sigX, setSigX], ['Y (px)', sigY, setSigY]].map(([lbl, val, set]: any) => (
+                <div key={lbl}><label className={labelCls}>{lbl}</label>
+                  <input className={inputCls} type="number" value={val} onChange={e => set(e.target.value)} /></div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'IMAGE_COMPRESSOR':
+        return (
+          <div className="mt-3">
+            <label className={labelCls}>Kualitas: {compressQuality}%</label>
+            <input type="range" min="10" max="100" value={compressQuality} onChange={e => setCompressQuality(Number(e.target.value))}
+              className="w-full accent-red-600 mt-1" />
+            <div className={`flex justify-between text-[10px] mt-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+              <span>Kecil</span><span>Besar</span>
+            </div>
+          </div>
+        );
+      case 'IMAGE_CONVERTER':
+        return (
+          <div className="mt-3"><label className={labelCls}>Format Tujuan</label>
+            <div className="grid grid-cols-3 gap-2">
+              {['jpeg', 'png', 'webp'].map(fmt => (
+                <button key={fmt} onClick={() => setTargetFormat(fmt)}
+                  className={`py-2 rounded-xl text-xs font-bold border uppercase transition-all ${targetFormat === fmt
+                    ? 'bg-red-600 text-white border-red-600' : isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                  {fmt}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'IMAGE_RESIZER':
+        return (
+          <div className="mt-3 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={labelCls}>Lebar (px)</label>
+                <input className={inputCls} type="number" placeholder="1080" value={resizeWidth} onChange={e => setResizeWidth(e.target.value)} /></div>
+              <div><label className={labelCls}>Tinggi (px)</label>
+                <input className={inputCls} type="number" placeholder="auto" value={resizeHeight} onChange={e => setResizeHeight(e.target.value)} /></div>
+            </div>
+            <button onClick={() => setResizeLock(!resizeLock)}
+              className={`flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl border transition-colors ${resizeLock
+                ? 'bg-red-600/10 border-red-500/30 text-red-500' : isDark ? 'border-gray-700 text-gray-500' : 'border-gray-200 text-gray-400'}`}>
+              {resizeLock ? '🔒 Rasio dikunci' : '🔓 Rasio bebas'}
             </button>
-            <div className="flex items-center gap-2.5 mb-6">
-              <div className="bg-red-600 p-1.5 rounded-xl shadow-lg shadow-red-500/30"><Zap size={15} className="text-white fill-current" /></div>
+          </div>
+        );
+      case 'QR_CODE':
+        return (
+          <div className="space-y-3">
+            <div><label className={labelCls}>Konten QR</label>
+              <textarea className={`${inputCls} resize-none`} rows={3} placeholder="URL, teks, nomor HP, dll..." value={qrContent} onChange={e => setQrContent(e.target.value)} /></div>
+            <button onClick={handleQrPreview} disabled={!qrContent.trim()}
+              className={`text-xs font-bold px-4 py-2 rounded-xl border transition-colors ${qrContent.trim() ? 'text-red-600 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-900/20' : isDark ? 'text-gray-600 border-gray-800' : 'text-gray-300 border-gray-100'}`}>
+              👁 Preview QR
+            </button>
+            {qrPreview && <img src={qrPreview} alt="QR Preview" className="w-32 h-32 rounded-xl border mx-auto block" />}
+          </div>
+        );
+      case 'OCR':
+        return ocrResult ? (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={labelCls}>Hasil OCR</label>
+              <button onClick={() => navigator.clipboard.writeText(ocrResult).then(() => showToast('Teks disalin!'))}
+                className="text-[10px] font-bold text-red-500 flex items-center gap-1"><Copy size={10} /> Salin</button>
+            </div>
+            <textarea readOnly className={`${inputCls} resize-none`} rows={6} value={ocrResult} />
+          </div>
+        ) : isProcessing && ocrProgress > 0 ? (
+          <div className="mt-3">
+            <div className="flex justify-between mb-1"><span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Memproses OCR...</span><span className="text-xs font-bold text-red-600">{ocrProgress}%</span></div>
+            <div className={`w-full h-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+              <div className="h-full bg-red-500 rounded-full transition-all duration-300" style={{ width: `${ocrProgress}%` }} />
+            </div>
+          </div>
+        ) : null;
+
+      // ── STUDENT TOOLS ──────────────────────────────────────────────────────────
+      case 'COVER_GENERATOR':
+        return (
+          <div className="space-y-2.5">
+            {[
+              ['Nama Universitas', coverData.uni, (v: string) => setCoverData(p => ({ ...p, uni: v })), 'Universitas Indonesia'],
+              ['Judul Makalah *', coverData.title, (v: string) => setCoverData(p => ({ ...p, title: v })), 'Pengaruh AI Terhadap...'],
+              ['Sub Judul', coverData.sub, (v: string) => setCoverData(p => ({ ...p, sub: v })), 'Opsional'],
+              ['Nama Penulis *', coverData.author, (v: string) => setCoverData(p => ({ ...p, author: v })), 'Nama Lengkap'],
+              ['NIM / NRP', coverData.id, (v: string) => setCoverData(p => ({ ...p, id: v })), '12345678'],
+              ['Tahun', coverData.year, (v: string) => setCoverData(p => ({ ...p, year: v })), '2025'],
+            ].map(([lbl, val, set, ph]: any) => (
+              <div key={lbl}><label className={labelCls}>{lbl}</label>
+                <input className={inputCls} placeholder={ph} value={val} onChange={e => set(e.target.value)} /></div>
+            ))}
+          </div>
+        );
+      case 'IPK_CALCULATOR': {
+        const gradeMap: Record<string, number> = { 'A': 4, 'A-': 3.7, 'B+': 3.3, 'B': 3, 'B-': 2.7, 'C+': 2.3, 'C': 2, 'D': 1, 'E': 0 };
+        const totalSks = ipkCourses.reduce((s, c) => s + (parseInt(c.credit) || 0), 0);
+        const totalPt = ipkCourses.reduce((s, c) => s + ((gradeMap[c.grade] ?? 0) * (parseInt(c.credit) || 0)), 0);
+        const ipkVal = totalSks ? (totalPt / totalSks).toFixed(2) : '—';
+        return (
+          <div className="space-y-3">
+            {totalSks > 0 && (
+              <div className={`p-3 rounded-xl border text-center ${isDark ? 'bg-red-900/20 border-red-800/50' : 'bg-red-50 border-red-100'}`}>
+                <div className="text-2xl font-black text-red-600">{ipkVal}</div>
+                <div className={`text-[10px] font-bold mt-0.5 ${isDark ? 'text-red-400' : 'text-red-400'}`}>{totalSks} SKS Total</div>
+              </div>
+            )}
+            <div className="space-y-2">
+              {ipkCourses.map((c, i) => (
+                <div key={c.id} className={`flex items-center gap-2 p-2 rounded-xl border ${isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-gray-50'}`}>
+                  <span className="flex-1 text-xs font-medium truncate">{c.name}</span>
+                  <span className="text-xs font-bold text-red-600">{c.grade}</span>
+                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{c.credit} SKS</span>
+                  <button onClick={() => setIpkCourses(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600"><X size={12} /></button>
+                </div>
+              ))}
+            </div>
+            <div className={`p-3 rounded-xl border space-y-2 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+              <div><label className={labelCls}>Mata Kuliah</label>
+                <input className={inputCls} placeholder="Nama matkul..." value={ipkNew.name} onChange={e => setIpkNew(p => ({ ...p, name: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={labelCls}>Nilai</label>
+                  <select className={inputCls} value={ipkNew.grade} onChange={e => setIpkNew(p => ({ ...p, grade: e.target.value }))}>
+                    {['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'E'].map(g => <option key={g}>{g}</option>)}
+                  </select></div>
+                <div><label className={labelCls}>SKS</label>
+                  <input className={inputCls} type="number" min="1" max="6" value={ipkNew.sks} onChange={e => setIpkNew(p => ({ ...p, sks: e.target.value }))} /></div>
+              </div>
+              <button onClick={() => {
+                if (!ipkNew.name.trim()) return;
+                setIpkCourses(prev => [...prev, { id: Date.now().toString(), name: ipkNew.name, grade: ipkNew.grade, credit: ipkNew.sks }]);
+                setIpkNew({ name: '', grade: 'A', sks: '3' });
+              }} className="w-full py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-1.5">
+                <Plus size={13} /> Tambah Matkul
+              </button>
+            </div>
+          </div>
+        );
+      }
+      case 'PUSTAKA_GENERATOR':
+        return (
+          <div className="space-y-3">
+            {pustakaEntries.length > 0 && (
+              <div className="space-y-1.5">
+                {pustakaEntries.map((e, i) => (
+                  <div key={e.id} className={`flex items-start gap-2 p-2.5 rounded-xl border text-xs ${isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-gray-50'}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold truncate">{e.author} ({e.year})</div>
+                      <div className={`truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{e.title}</div>
+                    </div>
+                    <button onClick={() => setPustakaEntries(prev => prev.filter((_, j) => j !== i))} className="text-red-400 flex-shrink-0"><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className={`p-3 rounded-xl border space-y-2 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+              {[['Nama Penulis', pustakaNew.author, (v: string) => setPustakaNew(p => ({ ...p, author: v })), 'Doe, J.'],
+                ['Tahun', pustakaNew.year, (v: string) => setPustakaNew(p => ({ ...p, year: v })), '2024'],
+                ['Judul', pustakaNew.title, (v: string) => setPustakaNew(p => ({ ...p, title: v })), 'Judul buku/artikel...'],
+                ['Penerbit / Jurnal', pustakaNew.pub, (v: string) => setPustakaNew(p => ({ ...p, pub: v })), 'Gramedia / IEEE Journal']
+              ].map(([lbl, val, set, ph]: any) => (
+                <div key={lbl}><label className={labelCls}>{lbl}</label>
+                  <input className={inputCls} placeholder={ph} value={val} onChange={e => set(e.target.value)} /></div>
+              ))}
+              <button onClick={() => {
+                if (!pustakaNew.author || !pustakaNew.title) return;
+                setPustakaEntries(prev => [...prev, { id: Date.now().toString(), ...pustakaNew, type: 'book' }]);
+                setPustakaNew({ author: '', year: '', title: '', pub: '' });
+              }} className="w-full py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-1.5">
+                <Plus size={13} /> Tambah Referensi
+              </button>
+            </div>
+          </div>
+        );
+      case 'SURAT_GENERATOR':
+        return (
+          <div className="space-y-2.5">
+            <div><label className={labelCls}>Jenis Surat</label>
+              <div className="grid grid-cols-2 gap-2">
+                {['IZIN', 'PERMOHONAN'].map(t => (
+                  <button key={t} onClick={() => setSuratData(p => ({ ...p, type: t }))}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-all ${suratData.type === t
+                      ? 'bg-red-600 text-white border-red-600' : isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                    {t === 'IZIN' ? '🙏 Surat Izin' : '📝 Permohonan'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {[['Nama Lengkap', 'name', suratData.name, 'Nama kamu...'],
+              ['NIM / NRP', 'id', suratData.id, '12345678'],
+              [suratData.type === 'IZIN' ? 'Alasan Tidak Hadir' : 'Keperluan / Permohonan', 'reason', suratData.reason, 'Sakit / keperluan keluarga...'],
+              ['Tanggal', 'date', suratData.date, '']].map(([lbl, key, val, ph]: any) => (
+              <div key={key}><label className={labelCls}>{lbl}</label>
+                <input className={inputCls} type={key === 'date' ? 'date' : 'text'} placeholder={ph} value={val}
+                  onChange={e => setSuratData(p => ({ ...p, [key]: e.target.value }))} /></div>
+            ))}
+          </div>
+        );
+      case 'WORD_COUNTER':
+        return (
+          <div className="space-y-3">
+            <div><label className={labelCls}>Tempel Teks</label>
+              <textarea className={`${inputCls} resize-none`} rows={6} placeholder="Tempel atau ketik teks di sini..."
+                value={wordText} onChange={e => setWordText(e.target.value)} /></div>
+            {wordText.trim() && (
+              <div className="grid grid-cols-2 gap-2">
+                {[['Kata', wordStats.words], ['Karakter', wordStats.chars],
+                  ['Kalimat', wordStats.sentences], [`Baca ~${wordStats.readTime} mnt`, '']].map(([lbl, val]: any) => (
+                  <div key={lbl} className={`p-2.5 rounded-xl border text-center ${isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-gray-50'}`}>
+                    <div className="text-lg font-black text-red-600">{val}</div>
+                    <div className={`text-[10px] font-bold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{lbl}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      case 'LOREM_IPSUM':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>Jumlah Paragraf: {loremCount}</label>
+              <input type="range" min="1" max="20" value={loremCount} onChange={e => setLoremCount(Number(e.target.value))}
+                className="w-full accent-red-600 mt-1" />
+            </div>
+            <div className={`p-3 rounded-xl border text-xs ${isDark ? 'border-gray-800 text-gray-500' : 'border-gray-100 text-gray-400'}`}>
+              {loremCount} paragraf × ~60 kata = ~{loremCount * 60} kata
+            </div>
+          </div>
+        );
+      case 'COLOR_PICKER':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>Pilih Warna</label>
+              <div className="flex gap-3 items-center">
+                <input type="color" value={pickedColor} onChange={e => setPickedColor(e.target.value)}
+                  className="w-14 h-12 rounded-xl cursor-pointer border-0 p-0.5 bg-transparent" />
+                <div className="flex-1 space-y-1.5">
+                  {[['HEX', pickedColor], ['RGB', hexToRgb(pickedColor)], ['HSL', hexToHsl(pickedColor)]].map(([fmt, val]) => (
+                    <button key={fmt} onClick={() => navigator.clipboard.writeText(val).then(() => { setCopiedColor(val); setTimeout(() => setCopiedColor(''), 2000); showToast(`${fmt} disalin!`); })}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${isDark ? 'border-gray-800 bg-gray-900 hover:border-gray-700' : 'border-gray-100 bg-gray-50 hover:border-gray-200'}`}>
+                      <span className={`text-[10px] font-bold ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{fmt}</span>
+                      <span>{val}</span>
+                      {copiedColor === val ? <Check size={11} className="text-green-500" /> : <Copy size={11} className={isDark ? 'text-gray-600' : 'text-gray-300'} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2 h-10 rounded-xl border" style={{ backgroundColor: pickedColor }} />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // ─── File Upload Area ─────────────────────────────────────────────────────────
+  const renderUploadArea = () => {
+    if (cfg.noFile) return null;
+    const hasFiles = currentMode === 'PICTURE_TO_PDF' ? images.length > 0
+      : currentMode === 'PDF_MERGER' ? multiFiles.length > 0
+      : singleFile !== null;
+
+    return (
+      <div className="space-y-3">
+        <input type="file" hidden multiple={cfg.multi} accept={cfg.accept} ref={fileInputRef} onChange={handleFileChange} />
+        {!hasFiles ? (
+          <button onClick={() => fileInputRef.current?.click()}
+            className={`group w-full h-36 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2.5 transition-all cursor-pointer
+              ${isDark ? 'border-gray-800 hover:border-red-600/60 hover:bg-red-950/10 bg-gray-900/30'
+                : 'border-gray-200 hover:border-red-400/60 hover:bg-red-50/50 bg-gray-50/50'}`}>
+            <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/30 group-hover:scale-110 transition-transform">
+              <FileUp size={17} className="text-white" />
+            </div>
+            <div className="text-center">
+              <p className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{cfg.label}</p>
+              <p className={`text-[10px] mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{cfg.accept || 'Semua format'}</p>
+            </div>
+          </button>
+        ) : (
+          <div className={`p-3 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-green-50 border-green-100'}`}>
+            {currentMode === 'PICTURE_TO_PDF' ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{images.length} gambar dipilih</span>
+                  <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-red-500 hover:text-red-600 flex items-center gap-1">
+                    <Plus size={11} /> Tambah
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {images.map((img, i) => (
+                    <div key={img.id} className="relative group">
+                      <img src={img.src} alt="" className="w-full aspect-square object-cover rounded-lg" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 rounded-lg flex items-center justify-center transition-opacity">
+                        <button onClick={() => setImages(prev => prev.filter(x => x.id !== img.id))} className="text-white"><X size={14} /></button>
+                      </div>
+                      <span className="absolute bottom-0.5 left-0.5 text-[8px] font-black text-white bg-black/50 px-1 rounded">{i + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : currentMode === 'PDF_MERGER' ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{multiFiles.length} file dipilih</span>
+                  <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-red-500 flex items-center gap-1"><Plus size={11} /> Tambah</button>
+                </div>
+                {multiFiles.map((f, i) => (
+                  <div key={i} className={`flex items-center gap-2 py-1.5 text-xs ${i < multiFiles.length - 1 ? (isDark ? 'border-b border-gray-800' : 'border-b border-gray-100') : ''}`}>
+                    <span className="font-bold text-red-600 w-5 text-center">{i + 1}</span>
+                    <span className="flex-1 truncate font-medium">{f.name}</span>
+                    <button onClick={() => setMultiFiles(prev => prev.filter((_, j) => j !== i))} className="text-red-400"><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 size={16} className="text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold truncate ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{singleFile!.name}</p>
+                  <p className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{(singleFile!.size / 1024).toFixed(0)} KB</p>
+                </div>
+                <button onClick={() => { setSingleFile(null); setOrganizerLoaded(false); setOrganizerPages([]); }}
+                  className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}><X size={14} /></button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+  return (
+    <div className={`flex min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#060912] text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+
+      {/* ── Toast ──────────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div className={`fixed bottom-24 lg:bottom-6 right-4 z-[200] flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl text-sm font-bold transition-all
+          ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+          {toast.type === 'success' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── Login Modal ──────────────────────────────────────────────────────────── */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+          <div className={`w-full max-w-sm rounded-3xl border shadow-2xl p-7 relative ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-200'}`}>
+            <button onClick={() => { setShowLoginModal(false); resetLoginForm(); }}
+              className={`absolute top-4 right-4 p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-500' : 'hover:bg-gray-100 text-gray-400'}`}><X size={15} /></button>
+            <div className="flex items-center gap-2 mb-5">
+              <div className="bg-red-600 p-1.5 rounded-xl shadow-lg shadow-red-600/30"><Zap size={14} className="text-white fill-current" /></div>
               <span className="text-sm font-black italic uppercase tracking-tighter">ANAK <span className="text-red-600">KAMPUS</span></span>
             </div>
-            <h2 className="text-base font-black uppercase tracking-tight mb-1">{loginMode === 'login' ? 'Masuk Akun' : 'Buat Akun'}</h2>
-            <p className={`text-[11px] mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              {loginMode === 'login' ? 'Login untuk lanjutkan ke Premium' : 'Daftar gratis, upgrade kapan saja'}
+            <h2 className="text-base font-black uppercase mb-1">{loginMode === 'login' ? 'Masuk Akun' : 'Buat Akun'}</h2>
+            <p className={`text-[11px] mb-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              {loginMode === 'login' ? 'Login untuk akses Premium 500 download' : 'Daftar gratis, upgrade kapan saja'}
             </p>
-            <div className={`flex rounded-2xl p-1 mb-5 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+            <div className={`flex rounded-xl p-1 mb-5 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
               {(['login', 'register'] as const).map(m => (
-                <button key={m} onClick={() => { setLoginMode(m); setLoginError(''); setLoginSuccess(''); }} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider duration-200 ${loginMode === m ? 'bg-red-600 text-white shadow-md' : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}>
+                <button key={m} onClick={() => { setLoginMode(m); setLoginError(''); setLoginSuccess(''); }}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${loginMode === m ? 'bg-red-600 text-white shadow' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                   {m === 'login' ? 'Masuk' : 'Daftar'}
                 </button>
               ))}
             </div>
-            <div className="space-y-3">
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border duration-200 focus-within:border-red-500 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-                <UserCircle size={15} className="text-gray-400 flex-shrink-0" />
+            <div className="space-y-2.5">
+              <div className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl border transition-colors focus-within:border-red-500 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                <UserCircle size={14} className="text-gray-400 flex-shrink-0" />
                 <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="Email kamu" className="flex-1 bg-transparent outline-none text-sm font-medium placeholder-gray-400" />
               </div>
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border duration-200 focus-within:border-red-500 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-                <Lock size={15} className="text-gray-400 flex-shrink-0" />
+              <div className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl border transition-colors focus-within:border-red-500 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                <Lock size={14} className="text-gray-400 flex-shrink-0" />
                 <input type={showPass ? 'text' : 'password'} value={loginPassword} onChange={e => setLoginPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLoginSubmit()} placeholder="Password" className="flex-1 bg-transparent outline-none text-sm font-medium placeholder-gray-400" />
-                <button onClick={() => setShowPass(!showPass)} className="text-gray-400 hover:text-gray-600 duration-200">{showPass ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+                <button onClick={() => setShowPass(!showPass)} className="text-gray-400">{showPass ? <EyeOff size={14} /> : <Eye size={14} />}</button>
               </div>
-              {loginError && <p className="text-red-500 text-[11px] font-bold bg-red-50 dark:bg-red-900/20 px-4 py-2.5 rounded-xl">{loginError}</p>}
-              {loginSuccess && <p className="text-green-600 text-[11px] font-bold bg-green-50 dark:bg-green-900/20 px-4 py-2.5 rounded-xl">{loginSuccess}</p>}
-              <button onClick={handleLoginSubmit} disabled={loginLoading} className={`w-full py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest duration-200 flex items-center justify-center gap-2 ${loginLoading ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white shadow-xl shadow-red-500/30 hover:scale-[1.02] active:scale-95'}`}>
-                {loginLoading ? <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg> Memproses...</> : <>{loginMode === 'login' ? 'Masuk & Lanjut ke Premium' : 'Buat Akun'} <ArrowRight size={13} /></>}
+              {loginError && <p className="text-red-500 text-[11px] font-bold bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl flex items-center gap-1.5"><AlertCircle size={12} />{loginError}</p>}
+              {loginSuccess && <p className="text-green-600 text-[11px] font-bold bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-xl flex items-center gap-1.5"><CheckCircle2 size={12} />{loginSuccess}</p>}
+              <button onClick={handleLoginSubmit} disabled={loginLoading}
+                className={`w-full py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 ${loginLoading ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white shadow-lg shadow-red-600/30 hover:scale-[1.02] active:scale-95'}`}>
+                {loginLoading ? <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Memproses...</> : <>{loginMode === 'login' ? 'Masuk & Lanjut' : 'Buat Akun'}<ArrowRight size={13} /></>}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {isSidebarOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
+      {/* ── Sidebar Overlay ────────────────────────────────────────────────────── */}
+      {isSidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
 
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col border-r duration-300 ${isDark ? 'bg-[#0B0F1A] border-gray-800/60' : 'bg-white border-gray-200'} ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0`}>
-        <div className="p-5 flex flex-col h-full overflow-y-auto">
-          <div className="flex items-center gap-2.5 mb-7 text-base font-black italic uppercase tracking-tighter">
-            <div className="bg-red-600 p-1.5 rounded-xl shadow-lg shadow-red-500/30"><Zap size={16} className="text-white fill-current" /></div>
-            ANAK <span className="text-red-600">KAMPUS</span>
+      {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-60 flex flex-col border-r transition-transform duration-300
+        ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-200'}
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0`}>
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Logo */}
+          <div className="px-4 pt-5 pb-4 flex items-center gap-2.5 border-b border-gray-800/30">
+            <div className="bg-red-600 p-1.5 rounded-xl shadow-lg shadow-red-600/30"><Zap size={15} className="text-white fill-current" /></div>
+            <span className="text-sm font-black italic uppercase tracking-tighter">ANAK <span className="text-red-600">KAMPUS</span></span>
           </div>
-          <nav className="flex-1 space-y-5">
+          {/* Nav */}
+          <nav className="flex-1 px-2.5 py-3 space-y-4 overflow-y-auto">
             {MENU_GROUPS.map(group => (
               <div key={group.label}>
-                <p className={`text-[8px] font-black uppercase tracking-widest mb-1.5 px-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{group.label}</p>
+                <p className={`text-[9px] font-black uppercase tracking-widest px-2 mb-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{group.label}</p>
                 <div className="space-y-0.5">
                   {group.items.map(item => (
-                    <button key={item.id} onClick={() => { setCurrentMode(item.id); resetState(); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-[11px] duration-150 ${currentMode === item.id ? 'bg-red-600 text-white shadow-md shadow-red-500/20' : isDark ? 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}>
-                      {getIcon(item.icon, 15)} {item.name}
+                    <button key={item.id} onClick={() => { setCurrentMode(item.id); resetState(); setIsSidebarOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-bold text-[11px] transition-all duration-100
+                        ${currentMode === item.id
+                          ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
+                          : isDark ? 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}>
+                      {getIcon(item.icon, 13)} {item.name}
                     </button>
                   ))}
                 </div>
               </div>
             ))}
           </nav>
-          <div className={`mt-5 pt-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-            <button onClick={() => setTheme(isDark ? 'light' : 'dark')} className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl duration-200 hover:ring-2 ring-red-500/20 ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-800'}`}>
-              <span className="text-[9px] font-black uppercase tracking-widest">{isDark ? 'Mode Malam' : 'Mode Terang'}</span>
-              {isDark ? <Moon size={14} className="text-blue-400" /> : <Sun size={14} className="text-orange-400" />}
+          {/* Bottom */}
+          <div className={`p-3 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+            <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}>
+              <span className="text-[9px] font-black uppercase tracking-widest">{isDark ? 'Mode Gelap' : 'Mode Terang'}</span>
+              {isDark ? <Moon size={13} className="text-blue-400" /> : <Sun size={13} className="text-orange-400" />}
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-5 md:p-9 overflow-y-auto pb-36 lg:pb-9">
-        <div className="max-w-4xl mx-auto">
-          <header className="flex items-center justify-between mb-5 lg:mb-7">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`hidden lg:hidden p-2.5 rounded-xl border ${isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200'}`}><Menu size={17} /></button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded-lg lg:hidden ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>{getIcon(MENU_GROUPS.flatMap(g => g.items).find(i => i.id === currentMode)?.icon || 'FileImage', 15)}</div>
-                  <h1 className="text-base lg:text-lg font-black uppercase italic tracking-tight">{currentMode.replace(/_/g, ' ')}</h1>
-                </div>
-                <p className={`text-[11px] mt-0.5 hidden lg:block ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{cfg.label}</p>
-              </div>
+      {/* ── Main ─────────────────────────────────────────────────────────────── */}
+      <main className="flex-1 min-h-screen flex flex-col overflow-x-hidden">
+        {/* Header */}
+        <header className={`sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b backdrop-blur-xl
+          ${isDark ? 'bg-[#060912]/90 border-gray-800' : 'bg-white/90 border-gray-100'}`}>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className={`lg:hidden p-2 rounded-xl border transition-colors ${isDark ? 'border-gray-800 text-gray-400 hover:bg-gray-800' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              <Menu size={16} />
+            </button>
+            <div className="hidden lg:block w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+            <div>
+              <h1 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                <span className="lg:hidden">{currentItem?.name ?? currentMode.replace(/_/g, ' ')}</span>
+                <span className="hidden lg:inline">{currentItem?.name ?? currentMode.replace(/_/g, ' ')}</span>
+              </h1>
             </div>
-            <div className="flex items-center gap-2">
-              {isLoggedIn ? (
-                <div className="flex items-center gap-2">
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-bold ${isDark ? 'bg-gray-900 border-gray-800 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}>
-                    {isPremium ? <Crown size={13} className="text-orange-500 fill-current" /> : <UserCircle size={13} className="text-gray-400" />}
-                    <span className="max-w-[100px] truncate">{profile?.email?.split('@')[0]}</span>
-                    {isPremium && <span className="text-[9px] text-orange-500 font-black">PRO</span>}
-                  </div>
-                  <button onClick={handleLogout} className={`p-2 rounded-xl border duration-200 hover:text-red-500 ${isDark ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-white border-gray-200 text-gray-500'}`}><LogOut size={14} /></button>
-                </div>
-              ) : (
-                <button onClick={() => openLoginModal('login')} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider border duration-200 hover:border-red-500 hover:text-red-600 ${isDark ? 'bg-gray-900 border-gray-800 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}><UserCircle size={14} /> Login</button>
-              )}
-            </div>
-          </header>
-
-          {/* Mobile Quota Bar */}
-          <div className={`lg:hidden mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-200'}`}>
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-1"><span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Kuota</span><span className={`text-[9px] font-black ${quotaFull ? 'text-red-500' : 'text-red-600'}`}>{downloadCount}/{MAX_QUOTA}</span></div>
-              <div className={`w-full h-1 rounded-full overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}><div className={`h-full duration-700 rounded-full ${quotaFull ? 'bg-red-600' : 'bg-red-500'}`} style={{ width: `${Math.min((downloadCount / MAX_QUOTA) * 100, 100)}%` }} /></div>
-            </div>
-            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${isPremium ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>{isPremium ? '⭐ PRO' : 'Free'}</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5">
+              <div className={`w-28 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                <div className={`h-full rounded-full transition-all duration-700 ${isPremium ? 'bg-gradient-to-r from-orange-400 to-red-500' : quotaFull ? 'bg-red-600' : 'bg-red-500'}`} style={{ width: `${quotaPct}%` }} />
+              </div>
+              <span className={`text-[10px] font-black ${quotaFull ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>{downloadCount}/{MAX_QUOTA}</span>
+              {isPremium && <span className="text-[9px] font-black text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-full">PRO</span>}
+            </div>
+            {isLoggedIn ? (
+              <div className="flex items-center gap-1.5">
+                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold max-w-[130px] truncate
+                  ${isDark ? 'bg-gray-900 border-gray-800 text-gray-300' : 'bg-white border-gray-200 text-gray-700'}`}>
+                  {isPremium ? <Crown size={12} className="text-orange-500 fill-current flex-shrink-0" /> : <UserCircle size={12} className="text-gray-400 flex-shrink-0" />}
+                  <span className="truncate text-[11px]">{profile?.email?.split('@')[0]}</span>
+                </div>
+                <button onClick={handleLogout} className={`p-2 rounded-xl border transition-colors ${isDark ? 'bg-gray-900 border-gray-800 text-gray-400 hover:text-red-400' : 'bg-white border-gray-200 text-gray-400 hover:text-red-500'}`}><LogOut size={13} /></button>
+              </div>
+            ) : (
+              <button onClick={() => openLoginModal('login')} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-colors ${isDark ? 'bg-gray-900 border-gray-800 text-gray-300 hover:border-red-500/50' : 'bg-white border-gray-200 text-gray-700 hover:border-red-400/50'}`}>
+                <UserCircle size={13} /> Login
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Content */}
+        <div className="flex-1 p-4 pb-28 lg:pb-6 max-w-4xl w-full mx-auto">
 
           {/* Premium Banner */}
           {!isPremium && (
-            <button onClick={() => isLoggedIn ? router.push('/upgrade') : openLoginModal('login')} className="w-full mb-6 group relative overflow-hidden rounded-[2rem] p-5 text-left duration-200 hover:scale-[1.01] active:scale-[0.99]" style={{ background: 'linear-gradient(135deg, #dc2626 0%, #ea580c 50%, #d97706 100%)' }}>
-              <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 group-hover:scale-110 duration-500" />
-              <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 group-hover:scale-125 duration-700" />
-              <div className="relative flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3"><div className="bg-white/20 backdrop-blur p-2.5 rounded-2xl"><Crown size={18} className="text-white fill-current" /></div><div><p className="text-white font-black uppercase text-sm tracking-tight flex items-center gap-2">Upgrade ke Premium <Sparkles size={13} className="text-yellow-300" /></p><p className="text-white/70 text-[11px] font-medium mt-0.5">500 download • Reset 15 hari • Semua fitur • Rp 15.000 lifetime</p></div></div>
-                <div className="flex-shrink-0 flex items-center gap-1.5 bg-white/20 backdrop-blur px-4 py-2 rounded-2xl text-white text-xs font-black uppercase tracking-wider group-hover:bg-white/30 duration-200">{isLoggedIn ? 'Upgrade' : 'Login dulu'} <ArrowRight size={12} /></div>
+            <button onClick={() => isLoggedIn ? router.push('/upgrade') : openLoginModal('login')}
+              className="w-full mb-5 group relative overflow-hidden rounded-2xl p-4 text-left transition-transform hover:scale-[1.01] active:scale-[0.99]"
+              style={{ background: 'linear-gradient(135deg, #dc2626, #ea580c)' }}>
+              <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full group-hover:scale-110 transition-transform duration-500" />
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-white/20 p-2 rounded-xl"><Crown size={16} className="text-white fill-current" /></div>
+                  <div>
+                    <p className="text-white font-black text-sm">Upgrade Premium</p>
+                    <p className="text-white/70 text-[10px]">500 download • Reset 15 hari • Rp 15.000 lifetime</p>
+                  </div>
+                </div>
+                <div className="flex-shrink-0 flex items-center gap-1 bg-white/20 px-3 py-1.5 rounded-xl text-white text-[10px] font-black">
+                  {isLoggedIn ? 'Upgrade' : 'Login'} <ArrowRight size={11} />
+                </div>
               </div>
             </button>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Left Column */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="space-y-4">
-                <input type="file" hidden multiple={cfg.multi} accept={cfg.accept} ref={fileInputRef} onChange={handleFileChange} />
-                <DropZone onClick={() => fileInputRef.current?.click()} label={singleFile ? singleFile.name : images.length > 0 ? `${images.length} gambar dipilih` : undefined} />
-                {currentMode === 'PICTURE_TO_PDF' && images.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {images.map((img, i) => (
-                      <div key={img.id} className={`flex items-center gap-3 p-3 rounded-[1.75rem] border ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-200'}`}>
-                        <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-700">
-                          <img src={img.src} className="w-full h-full object-cover" alt="" />
-                        </div>
-                        <span className={`flex-1 text-[10px] font-black uppercase truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Hal {i + 1}</span>
-                        <button onClick={e => { e.stopPropagation(); setImages(images.filter(x => x.id !== img.id)); }} className="text-red-500 p-1.5 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          {/* Main Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+            {/* Left: Tool UI */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                <p className={`text-[9px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                  <span className="w-1 h-3 rounded-full bg-red-600 inline-block" />
+                  {cfg.label}
+                </p>
+                {renderUploadArea()}
+                {renderModeUI()}
+              </div>
+
+              {/* Tips */}
+              <div className={`p-3.5 rounded-2xl border flex gap-2.5 ${isDark ? 'bg-gray-900/30 border-gray-800' : 'bg-amber-50 border-amber-100'}`}>
+                <span className="text-base flex-shrink-0 mt-0.5">💡</span>
+                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-gray-500' : 'text-amber-700'}`}>{cfg.tip}</p>
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="space-y-4">
-              <div className={`p-6 rounded-[2.5rem] border shadow-xl ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-100'}`}>
-                <div className="mb-5">
-                  <div className="flex justify-between items-center mb-2"><p className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Kuota</p><span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isPremium ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>{isPremium ? '⭐ Premium' : 'Free'}</span></div>
-                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}><div className={`h-full duration-700 ${isPremium ? 'bg-gradient-to-r from-orange-400 to-red-600' : quotaFull ? 'bg-red-600' : 'bg-red-500'}`} style={{ width: `${Math.min((downloadCount / MAX_QUOTA) * 100, 100)}%` }} /></div>
-                  <div className="flex justify-between mt-1.5"><p className={`text-[9px] font-black ${quotaFull ? 'text-red-500' : 'text-red-600'}`}>{downloadCount}/{MAX_QUOTA}</p>{!isPremium && <p className={`text-[8px] ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Reset 15 hari</p>}</div>
+            {/* Right: Action Panel */}
+            <div className="lg:col-span-2 space-y-3">
+              {/* Quota Card */}
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Kuota Download</span>
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isPremium ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
+                    {isPremium ? '⭐ Premium' : 'Gratis'}
+                  </span>
                 </div>
-                <button disabled={(!isReady() && !quotaFull) || isProcessing} onClick={handleMainAction} className={`w-full py-4 rounded-[1.5rem] font-black uppercase text-[11px] tracking-widest duration-200 ${quotaFull ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-xl shadow-red-500/30 hover:scale-105 active:scale-95' : isReady() && !isProcessing ? 'bg-red-600 text-white shadow-xl shadow-red-500/30 hover:scale-105 active:scale-95' : isDark ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}>
-                  {isProcessing ? <span className="flex items-center justify-center gap-2"><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg> Memproses...</span> : quotaFull ? <span className="flex items-center justify-center gap-1.5"><Crown size={13} className="fill-current" /> Kuota Habis — Upgrade</span> : <><Download size={14} className="inline mr-1.5 mb-0.5" /> {currentMode === 'OCR' ? 'Mulai Scan' : currentMode === 'QR_CODE' ? 'Generate QR' : 'Download'}</>}
-                </button>
-                {(singleFile || images.length > 0 || multiFiles.length > 0 || ocrResult || organizerLoaded) && (<button onClick={resetState} className={`w-full mt-2.5 py-3 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest duration-200 ${isDark ? 'bg-gray-900 text-gray-500 hover:text-gray-300' : 'bg-gray-50 text-gray-400 hover:text-gray-600'}`}><Trash2 size={11} className="inline mr-1.5 mb-0.5" /> Reset</button>)}
+                <div className={`w-full h-2 rounded-full overflow-hidden mb-1.5 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+                  <div className={`h-full rounded-full transition-all duration-700 ${isPremium ? 'bg-gradient-to-r from-orange-400 to-red-500' : quotaFull ? 'bg-red-600' : 'bg-red-500'}`} style={{ width: `${quotaPct}%` }} />
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-[10px] font-black ${quotaFull ? 'text-red-500' : 'text-red-600'}`}>{downloadCount}/{MAX_QUOTA}</span>
+                  {!isPremium && <span className={`text-[9px] ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Reset tiap 15 hari</span>}
+                </div>
               </div>
-              <div className={`p-4 rounded-[2rem] border ${isDark ? 'bg-[#0B0F1A] border-gray-800' : 'bg-white border-gray-100'}`}><p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Tips</p><p className={`text-[11px] leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{cfg.tip}</p></div>
+
+              {/* Action Button */}
+              <button disabled={(!isReady() && !quotaFull) || isProcessing} onClick={handleMainAction}
+                className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2
+                  ${quotaFull ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-xl shadow-red-500/30 hover:scale-[1.02]'
+                    : isReady() && !isProcessing ? 'bg-red-600 text-white shadow-xl shadow-red-500/25 hover:scale-[1.02] active:scale-95'
+                    : isDark ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}>
+                {isProcessing ? (
+                  <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Memproses...</>
+                ) : quotaFull ? (
+                  <><Crown size={14} className="fill-current" /> Kuota Habis — Upgrade</>
+                ) : (
+                  <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</> : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</> : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</> : <><Download size={14} /> Proses & Unduh</>}</>
+                )}
+              </button>
+
+              {/* Reset Button */}
+              {(singleFile || images.length > 0 || multiFiles.length > 0 || ocrResult || organizerLoaded || wordText) && (
+                <button onClick={resetState} className={`w-full py-2.5 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 ${isDark ? 'text-gray-600 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'}`}>
+                  <Trash2 size={11} /> Reset
+                </button>
+              )}
+
+              {/* Info Card */}
+              <div className={`p-3.5 rounded-2xl border ${isDark ? 'bg-gray-900/30 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+                <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Cara Pakai</p>
+                <div className="space-y-1.5">
+                  {[
+                    cfg.noFile ? 'Isi form yang tersedia' : `Upload ${cfg.multi ? 'beberapa file' : 'satu file'}`,
+                    'Klik tombol proses di atas',
+                    'File langsung terunduh otomatis',
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-4 h-4 rounded-full bg-red-600/20 text-red-600 text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                      <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Mobile Bottom Nav */}
-      <nav className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t backdrop-blur-xl ${isDark ? 'bg-[#0B0F1A]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="flex items-stretch">
+      {/* ── Mobile Bottom Nav ─────────────────────────────────────────────────── */}
+      <nav className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t backdrop-blur-xl
+        ${isDark ? 'bg-[#060912]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="flex items-stretch overflow-x-auto scrollbar-none">
           {MENU_GROUPS.map(group => {
             const isActive = group.items.some(i => i.id === currentMode);
-            const isOpen = mobileCategory === group.label;
-            return (<button key={group.label} onClick={() => setMobileCategory(isOpen ? null : group.label)} className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 relative duration-150 ${isActive ? 'text-red-600' : isOpen ? (isDark ? 'text-gray-200' : 'text-gray-700') : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-red-600 rounded-full" />}
-              {group.label === 'Konversi' ? <FileImage size={19} /> : group.label === 'PDF Tools' ? <Layers size={19} /> : <Sparkles size={19} />}
-              <span className="text-[8px] font-black uppercase tracking-wider">{group.label}</span>
-            </button>);
+            return (
+              <button key={group.label} onClick={() => {
+                const firstItem = group.items[0];
+                setCurrentMode(firstItem.id); resetState(); setIsSidebarOpen(false);
+              }}
+                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 px-1 relative transition-colors
+                  ${isActive ? 'text-red-600' : isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-red-600 rounded-full" />}
+                <span className="text-base">{group.label === 'Konversi' ? '🔄' : group.label === 'PDF Tools' ? '📄' : group.label === 'Gambar' ? '🖼️' : group.label === 'Mahasiswa' ? '🎓' : group.label === 'Teks & Warna' ? '✏️' : '✨'}</span>
+                <span className="text-[8px] font-black uppercase tracking-wider truncate w-full text-center leading-tight">{group.label}</span>
+              </button>
+            );
           })}
-          <button onClick={() => setTheme(isDark ? 'light' : 'dark')} className={`px-5 flex flex-col items-center gap-0.5 py-2.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            {isDark ? <Moon size={19} className="text-blue-400" /> : <Sun size={19} className="text-orange-400" />}
-            <span className="text-[8px] font-black uppercase tracking-wider">Tema</span>
+          <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className={`flex-shrink-0 flex flex-col items-center gap-0.5 py-2.5 px-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+            {isDark ? <Moon size={17} className="text-blue-400" /> : <Sun size={17} className="text-orange-400" />}
+            <span className="text-[8px] font-black uppercase">Tema</span>
           </button>
         </div>
       </nav>
