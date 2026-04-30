@@ -25,6 +25,7 @@ import {
   ChevronRight, CheckCircle2, AlertCircle,
   Copy, Check, Clipboard,
   Calendar, Timer, CheckSquare, Play, Pause, RefreshCw, Music
+  , Lightbulb
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -284,17 +285,21 @@ export default function Home() {
   }, [resetLoginForm]);
 
   const handleLoginSubmit = useCallback(async () => {
-    if (!loginEmail || !loginPassword) { setLoginError('Isi email dan password!'); return; }
+    if (!loginEmail || !loginPassword) { setLoginError('Harap isi email dan kata sandi.'); return; }
     setLoginLoading(true); setLoginError(''); setLoginSuccess('');
     try {
       if (loginMode === 'register') {
         const { error } = await supabase.auth.signUp({ email: loginEmail, password: loginPassword });
         if (error) throw error;
-        setLoginSuccess('Cek email untuk konfirmasi akun!');
+        await supabase.from('activity_logs').insert([{ action: 'USER_REGISTER', user_email: loginEmail }]);
+        setLoginSuccess('Periksa email untuk konfirmasi akun.');
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
         if (error) throw error;
-        if (data.user) await checkSession();
+        if (data.user) {
+          await supabase.from('activity_logs').insert([{ action: 'USER_LOGIN', user_email: data.user.email }]);
+          await checkSession();
+        }
         setShowLoginModal(false); resetLoginForm();
         router.push('/upgrade');
       }
@@ -303,7 +308,7 @@ export default function Home() {
   }, [loginEmail, loginPassword, loginMode, checkSession, resetLoginForm, router]);
 
   const handleLogout = useCallback(async () => {
-    try { await supabase.auth.signOut(); } catch {}
+    try { await supabase.auth.signOut(); } catch { }
     setProfile(null); showToast('Berhasil keluar');
   }, [showToast]);
 
@@ -311,7 +316,7 @@ export default function Home() {
   const finalizeProcess = useCallback(async () => {
     if (isLoggedIn && profile) {
       const newCount = (profile.download_count ?? 0) + 1;
-      try { await supabase.from('profiles').update({ download_count: newCount }).eq('id', profile.id); } catch {}
+      try { await supabase.from('profiles').update({ download_count: newCount }).eq('id', profile.id); } catch { }
       setProfile(prev => prev ? { ...prev, download_count: newCount } : null);
     } else {
       const nc = localCount + 1;
@@ -546,7 +551,7 @@ export default function Home() {
   }, [singleFile, organizerPages, saveBlob]);
 
   const handleAddSignature = useCallback(async () => {
-    if (!sigFile) { showToast('Upload gambar tanda tangan dulu!', 'error'); return; }
+    if (!sigFile) { showToast('Harap unggah gambar tanda tangan terlebih dahulu.', 'error'); return; }
     const sigUint8 = new Uint8Array(await sigFile.arrayBuffer());
     const isPng = sigFile.type === 'image/png' || sigFile.name.endsWith('.png');
     const doc = await PDFDocument.load(await singleFile!.arrayBuffer());
@@ -827,7 +832,7 @@ export default function Home() {
     doc.setFillColor(30, 30, 30); doc.rect(0, 0, 210, 297, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(24);
     doc.text('JADWAL KULIAH', 105, 30, { align: 'center' });
-    
+
     const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     let y = 50;
     days.forEach(day => {
@@ -907,7 +912,7 @@ export default function Home() {
       await map[currentMode]?.();
     } catch (e) {
       console.error(e);
-      showToast('Terjadi kesalahan. Coba lagi!', 'error');
+      showToast('Terjadi kesalahan. Silakan coba lagi.', 'error');
     } finally { setIsProcessing(false); }
   }, [quotaFull, openLoginModal, currentMode, handlePictureToPdf, handleWordToPdf, handlePdfToWord,
     handleToExcel, handlePdfToImage, handleImageToExcel, handlePdfMerger, handlePdfSplitter,
@@ -915,7 +920,7 @@ export default function Home() {
     handlePageOrganizer, handleAddSignature, handleQrCode, handleOcr, handleImageCompressor,
     handleImageConverter, handleImageResizer, handleCoverGenerator, handleIpkCalculator,
     handlePustakaGenerator, handleSuratGenerator, handleWordCounter, handleLoremIpsum,
-    handleColorPicker, handleAiSummarizer, handleAiParaphrase, handleAiTitleGen, 
+    handleColorPicker, handleAiSummarizer, handleAiParaphrase, handleAiTitleGen,
     handleScheduleDownload, handleTodoList, togglePomo, showToast]);
 
   // ─── Effects ──────────────────────────────────────────────────────────────────
@@ -928,7 +933,7 @@ export default function Home() {
             clearInterval(interval);
             setPomoActive(false);
             setTimeout(() => {
-              showToast(pomoMode === 'focus' ? 'Waktu fokus selesai! Istirahat yuk 🎉' : 'Waktu istirahat selesai! Lanjut fokus 🔥');
+              showToast(pomoMode === 'focus' ? 'Waktu fokus selesai! Istirahat yuk ' : 'Waktu istirahat selesai! Lanjut fokus ');
               resetPomo(pomoMode === 'focus' ? 'break' : 'focus');
             }, 100);
             return 0;
@@ -944,11 +949,11 @@ export default function Home() {
     setMounted(true);
     const savedQuota = localStorage.getItem('anak_kampus_quota');
     if (savedQuota) setLocalCount(parseInt(savedQuota));
-    
+
     try {
       const savedTodos = localStorage.getItem('anak_kampus_todos');
       if (savedTodos) setTodos(JSON.parse(savedTodos));
-      
+
       const savedSchedules = localStorage.getItem('anak_kampus_schedules');
       if (savedSchedules) setSchedules(JSON.parse(savedSchedules));
     } catch (e) {
@@ -1056,7 +1061,7 @@ export default function Home() {
         return (
           <div className="mt-3 space-y-2.5">
             {[['Judul', metaTitle, setMetaTitle], ['Pengarang', metaAuthor, setMetaAuthor],
-              ['Subjek', metaSubject, setMetaSubject], ['Kata Kunci', metaKeywords, setMetaKeywords]].map(([lbl, val, set]: any) => (
+            ['Subjek', metaSubject, setMetaSubject], ['Kata Kunci', metaKeywords, setMetaKeywords]].map(([lbl, val, set]: any) => (
               <div key={lbl}><label className={labelCls}>{lbl}</label>
                 <input className={inputCls} placeholder={`Masukkan ${lbl.toLowerCase()}...`} value={val} onChange={e => set(e.target.value)} /></div>
             ))}
@@ -1090,13 +1095,13 @@ export default function Home() {
               <label className={labelCls}>Upload Gambar Tanda Tangan</label>
               <button onClick={() => sigInputRef.current?.click()}
                 className={`w-full py-2.5 rounded-xl border text-xs font-bold text-left px-3.5 transition-colors ${isDark ? 'border-gray-700 text-gray-400 hover:border-gray-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                {sigFile ? sigFile.name : '📎 Pilih file PNG/JPG...'}
+                {sigFile ? sigFile.name : ' Pilih file PNG/JPG...'}
               </button>
               <input ref={sigInputRef} type="file" hidden accept="image/*" onChange={e => setSigFile(e.target.files?.[0] ?? null)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               {[['Halaman', sigPage, setSigPage], ['Lebar (px)', sigWidth, setSigWidth],
-                ['X (px)', sigX, setSigX], ['Y (px)', sigY, setSigY]].map(([lbl, val, set]: any) => (
+              ['X (px)', sigX, setSigX], ['Y (px)', sigY, setSigY]].map(([lbl, val, set]: any) => (
                 <div key={lbl}><label className={labelCls}>{lbl}</label>
                   <input className={inputCls} type="number" value={val} onChange={e => set(e.target.value)} /></div>
               ))}
@@ -1140,7 +1145,7 @@ export default function Home() {
             <button onClick={() => setResizeLock(!resizeLock)}
               className={`flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl border transition-colors ${resizeLock
                 ? 'bg-red-600/10 border-red-500/30 text-red-500' : isDark ? 'border-gray-700 text-gray-500' : 'border-gray-200 text-gray-400'}`}>
-              {resizeLock ? '🔒 Rasio dikunci' : '🔓 Rasio bebas'}
+              {resizeLock ? ' Rasio dikunci' : ' Rasio bebas'}
             </button>
           </div>
         );
@@ -1151,7 +1156,7 @@ export default function Home() {
               <textarea className={`${inputCls} resize-none`} rows={3} placeholder="URL, teks, nomor HP, dll..." value={qrContent} onChange={e => setQrContent(e.target.value)} /></div>
             <button onClick={handleQrPreview} disabled={!qrContent.trim()}
               className={`text-xs font-bold px-4 py-2 rounded-xl border transition-colors ${qrContent.trim() ? 'text-red-600 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-900/20' : isDark ? 'text-gray-600 border-gray-800' : 'text-gray-300 border-gray-100'}`}>
-              👁 Preview QR
+              Preview QR
             </button>
             {qrPreview && <img src={qrPreview} alt="QR Preview" className="w-32 h-32 rounded-xl border mx-auto block" />}
           </div>
@@ -1255,9 +1260,9 @@ export default function Home() {
             )}
             <div className={`p-3 rounded-xl border space-y-2 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
               {[['Nama Penulis', pustakaNew.author, (v: string) => setPustakaNew(p => ({ ...p, author: v })), 'Doe, J.'],
-                ['Tahun', pustakaNew.year, (v: string) => setPustakaNew(p => ({ ...p, year: v })), '2024'],
-                ['Judul', pustakaNew.title, (v: string) => setPustakaNew(p => ({ ...p, title: v })), 'Judul buku/artikel...'],
-                ['Penerbit / Jurnal', pustakaNew.pub, (v: string) => setPustakaNew(p => ({ ...p, pub: v })), 'Gramedia / IEEE Journal']
+              ['Tahun', pustakaNew.year, (v: string) => setPustakaNew(p => ({ ...p, year: v })), '2024'],
+              ['Judul', pustakaNew.title, (v: string) => setPustakaNew(p => ({ ...p, title: v })), 'Judul buku/artikel...'],
+              ['Penerbit / Jurnal', pustakaNew.pub, (v: string) => setPustakaNew(p => ({ ...p, pub: v })), 'Gramedia / IEEE Journal']
               ].map(([lbl, val, set, ph]: any) => (
                 <div key={lbl}><label className={labelCls}>{lbl}</label>
                   <input className={inputCls} placeholder={ph} value={val} onChange={e => set(e.target.value)} /></div>
@@ -1281,15 +1286,15 @@ export default function Home() {
                   <button key={t} onClick={() => setSuratData(p => ({ ...p, type: t }))}
                     className={`py-2 rounded-xl text-xs font-bold border transition-all ${suratData.type === t
                       ? 'bg-red-600 text-white border-red-600' : isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
-                    {t === 'IZIN' ? '🙏 Surat Izin' : '📝 Permohonan'}
+                    {t === 'IZIN' ? ' Surat Izin' : ' Permohonan'}
                   </button>
                 ))}
               </div>
             </div>
             {[['Nama Lengkap', 'name', suratData.name, 'Nama kamu...'],
-              ['NIM / NRP', 'id', suratData.id, '12345678'],
-              [suratData.type === 'IZIN' ? 'Alasan Tidak Hadir' : 'Keperluan / Permohonan', 'reason', suratData.reason, 'Sakit / keperluan keluarga...'],
-              ['Tanggal', 'date', suratData.date, '']].map(([lbl, key, val, ph]: any) => (
+            ['NIM / NRP', 'id', suratData.id, '12345678'],
+            [suratData.type === 'IZIN' ? 'Alasan Tidak Hadir' : 'Keperluan / Permohonan', 'reason', suratData.reason, 'Sakit / keperluan keluarga...'],
+            ['Tanggal', 'date', suratData.date, '']].map(([lbl, key, val, ph]: any) => (
               <div key={key}><label className={labelCls}>{lbl}</label>
                 <input className={inputCls} type={key === 'date' ? 'date' : 'text'} placeholder={ph} value={val}
                   onChange={e => setSuratData(p => ({ ...p, [key]: e.target.value }))} /></div>
@@ -1305,7 +1310,7 @@ export default function Home() {
             {wordText.trim() && (
               <div className="grid grid-cols-2 gap-2">
                 {[['Kata', wordStats.words], ['Karakter', wordStats.chars],
-                  ['Kalimat', wordStats.sentences], [`Baca ~${wordStats.readTime} mnt`, '']].map(([lbl, val]: any) => (
+                ['Kalimat', wordStats.sentences], [`Baca ~${wordStats.readTime} mnt`, '']].map(([lbl, val]: any) => (
                   <div key={lbl} className={`p-2.5 rounded-xl border text-center ${isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-gray-50'}`}>
                     <div className="text-lg font-black text-red-600">{val}</div>
                     <div className={`text-[10px] font-bold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{lbl}</div>
@@ -1365,7 +1370,7 @@ export default function Home() {
               <div className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1">
-                    {[0,1,2].map(i => (
+                    {[0, 1, 2].map(i => (
                       <div key={i} className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                     ))}
                   </div>
@@ -1419,7 +1424,7 @@ export default function Home() {
               <div className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1">
-                    {[0,1,2].map(i => (
+                    {[0, 1, 2].map(i => (
                       <div key={i} className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                     ))}
                   </div>
@@ -1478,7 +1483,7 @@ export default function Home() {
               <div className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1">
-                    {[0,1,2].map(i => (
+                    {[0, 1, 2].map(i => (
                       <div key={i} className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                     ))}
                   </div>
@@ -1544,8 +1549,8 @@ export default function Home() {
         return (
           <div className="space-y-4 mt-1">
             <div className="flex gap-2">
-              <input className={inputCls} placeholder="Tugas baru..." value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && newTodo) { setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]); setNewTodo(''); } }} />
-              <button onClick={() => { if(newTodo) { setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]); setNewTodo(''); } }} className="px-4 bg-red-600 text-white rounded-xl hover:bg-red-700"><Plus size={18} /></button>
+              <input className={inputCls} placeholder="Tugas baru..." value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTodo) { setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]); setNewTodo(''); } }} />
+              <button onClick={() => { if (newTodo) { setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]); setNewTodo(''); } }} className="px-4 bg-red-600 text-white rounded-xl hover:bg-red-700"><Plus size={18} /></button>
             </div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               {todos.map(t => (
@@ -1557,7 +1562,7 @@ export default function Home() {
                   <button onClick={() => setTodos(todos.filter(x => x.id !== t.id))} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14} /></button>
                 </div>
               ))}
-              {todos.length === 0 && <div className={`text-center p-8 text-sm font-medium ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Belum ada tugas. Yay! 🎉</div>}
+              {todos.length === 0 && <div className={`text-center p-8 text-sm font-medium ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Belum ada tugas. Yay! </div>}
             </div>
           </div>
         );
@@ -1567,21 +1572,21 @@ export default function Home() {
           <div className="space-y-4 mt-1">
             <div className="grid grid-cols-2 gap-2">
               <div><label className={labelCls}>Hari</label>
-                <select className={inputCls} value={newSchedule.day} onChange={e => setNewSchedule({...newSchedule, day: e.target.value})}>
+                <select className={inputCls} value={newSchedule.day} onChange={e => setNewSchedule({ ...newSchedule, day: e.target.value })}>
                   {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
-              <div><label className={labelCls}>Waktu (Mulai)</label><input type="time" className={inputCls} value={newSchedule.time} onChange={e => setNewSchedule({...newSchedule, time: e.target.value})} /></div>
+              <div><label className={labelCls}>Waktu (Mulai)</label><input type="time" className={inputCls} value={newSchedule.time} onChange={e => setNewSchedule({ ...newSchedule, time: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><label className={labelCls}>Mata Kuliah</label><input className={inputCls} placeholder="Nama Matkul..." value={newSchedule.course} onChange={e => setNewSchedule({...newSchedule, course: e.target.value})} /></div>
-              <div><label className={labelCls}>Ruangan</label><input className={inputCls} placeholder="Gedung A..." value={newSchedule.room} onChange={e => setNewSchedule({...newSchedule, room: e.target.value})} /></div>
+              <div><label className={labelCls}>Mata Kuliah</label><input className={inputCls} placeholder="Nama Matkul..." value={newSchedule.course} onChange={e => setNewSchedule({ ...newSchedule, course: e.target.value })} /></div>
+              <div><label className={labelCls}>Ruangan</label><input className={inputCls} placeholder="Gedung A..." value={newSchedule.room} onChange={e => setNewSchedule({ ...newSchedule, room: e.target.value })} /></div>
             </div>
-            <button onClick={() => { if(newSchedule.time && newSchedule.course) { setSchedules([...schedules, { id: Date.now().toString(), ...newSchedule }]); setNewSchedule({...newSchedule, time: '', course: '', room: ''}); } }} className="w-full py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 text-xs flex items-center justify-center gap-2"><Plus size={14} /> Tambah Jadwal</button>
-            
+            <button onClick={() => { if (newSchedule.time && newSchedule.course) { setSchedules([...schedules, { id: Date.now().toString(), ...newSchedule }]); setNewSchedule({ ...newSchedule, time: '', course: '', room: '' }); } }} className="w-full py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 text-xs flex items-center justify-center gap-2"><Plus size={14} /> Tambah Jadwal</button>
+
             <div className="space-y-3 mt-4 max-h-[300px] overflow-y-auto">
               {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map(day => {
-                const daySchedules = schedules.filter(s => s.day === day).sort((a,b) => a.time.localeCompare(b.time));
+                const daySchedules = schedules.filter(s => s.day === day).sort((a, b) => a.time.localeCompare(b.time));
                 if (daySchedules.length === 0) return null;
                 return (
                   <div key={day} className={`p-3 rounded-xl border ${isDark ? 'bg-[#0C101C]/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
@@ -1615,7 +1620,7 @@ export default function Home() {
     if (cfg.noFile) return null;
     const hasFiles = currentMode === 'PICTURE_TO_PDF' ? images.length > 0
       : currentMode === 'PDF_MERGER' ? multiFiles.length > 0
-      : singleFile !== null;
+        : singleFile !== null;
 
     return (
       <div className="space-y-3">
@@ -1864,120 +1869,120 @@ export default function Home() {
 
         {/* Content — ONLY this area scrolls */}
         <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="p-5 pb-28 lg:pb-8 max-w-4xl w-full mx-auto">
+          <div className="p-5 pb-28 lg:pb-8 max-w-4xl w-full mx-auto">
 
-          {/* Premium Banner */}
-          {!isPremium && (
-            <button onClick={() => isLoggedIn ? router.push('/upgrade') : openLoginModal('login')}
-              className="w-full mb-5 group relative overflow-hidden rounded-2xl p-4 text-left transition-transform hover:scale-[1.01] active:scale-[0.99]"
-              style={{ background: 'linear-gradient(135deg, #dc2626, #ea580c)' }}>
-              <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full group-hover:scale-110 transition-transform duration-500" />
-              <div className="relative flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="bg-white/20 p-2 rounded-xl"><Crown size={16} className="text-white fill-current" /></div>
-                  <div>
-                    <p className="text-white font-black text-sm">Upgrade Premium</p>
-                    <p className="text-white/70 text-[10px]">500 download • Reset 15 hari • Rp 15.000 lifetime</p>
+            {/* Premium Banner */}
+            {!isPremium && (
+              <button onClick={() => isLoggedIn ? router.push('/upgrade') : openLoginModal('login')}
+                className="w-full mb-5 group relative overflow-hidden rounded-2xl p-4 text-left transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                style={{ background: 'linear-gradient(135deg, #dc2626, #ea580c)' }}>
+                <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full group-hover:scale-110 transition-transform duration-500" />
+                <div className="relative flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-white/20 p-2 rounded-xl"><Crown size={16} className="text-white fill-current" /></div>
+                    <div>
+                      <p className="text-white font-black text-sm">Upgrade Premium</p>
+                      <p className="text-white/70 text-[10px]">500 download • Reset 15 hari • Rp 15.000 lifetime</p>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 flex items-center gap-1 bg-white/20 px-3 py-1.5 rounded-xl text-white text-[10px] font-black">
+                    {isLoggedIn ? 'Upgrade' : 'Login'} <ArrowRight size={11} />
                   </div>
                 </div>
-                <div className="flex-shrink-0 flex items-center gap-1 bg-white/20 px-3 py-1.5 rounded-xl text-white text-[10px] font-black">
-                  {isLoggedIn ? 'Upgrade' : 'Login'} <ArrowRight size={11} />
-                </div>
-              </div>
-            </button>
-          )}
-
-          {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-            {/* Left: Tool UI */}
-            <div className="lg:col-span-3 space-y-4">
-              <div className={`p-5 rounded-2xl border ${isDark ? 'bg-[#0C101C]/90 border-gray-800/60 shadow-xl shadow-black/30' : 'bg-white border-gray-100 shadow-md shadow-gray-200/60'}`}>
-                <p className={`text-[9px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                  <span className="w-1 h-3 rounded-full bg-red-600 inline-block" />
-                  {cfg.label}
-                </p>
-                {renderUploadArea()}
-                {renderModeUI()}
-              </div>
-
-              {/* Tips */}
-              <div className={`p-3.5 rounded-2xl border flex gap-2.5 ${isDark ? 'bg-gray-900/30 border-gray-800' : 'bg-amber-50 border-amber-100'}`}>
-                <span className="text-base flex-shrink-0 mt-0.5">💡</span>
-                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-gray-500' : 'text-amber-700'}`}>{cfg.tip}</p>
-              </div>
-            </div>
-
-            {/* Right: Action Panel */}
-            <div className="lg:col-span-2 space-y-3">
-              {/* Quota Card */}
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C]/90 border-gray-800/60 shadow-xl shadow-black/30' : 'bg-white border-gray-100 shadow-md shadow-gray-200/60'}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Kuota Download</span>
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isPremium ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
-                    {isPremium ? '⭐ Premium' : 'Gratis'}
-                  </span>
-                </div>
-                <div className={`w-full h-2 rounded-full overflow-hidden mb-1.5 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
-                  <div className={`h-full rounded-full transition-all duration-700 ${isPremium ? 'bg-gradient-to-r from-orange-400 to-red-500' : quotaFull ? 'bg-red-600' : 'bg-red-500'}`} style={{ width: `${quotaPct}%` }} />
-                </div>
-                <div className="flex justify-between">
-                  <span className={`text-[10px] font-black ${quotaFull ? 'text-red-500' : 'text-red-600'}`}>{downloadCount}/{MAX_QUOTA}</span>
-                  {!isPremium && <span className={`text-[9px] ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Reset tiap 15 hari</span>}
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <button disabled={(!isReady() && !quotaFull) || (isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode))} onClick={handleMainAction}
-                className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 relative overflow-hidden
-                  ${quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode)
-                    ? 'bg-gradient-to-r from-orange-500 via-red-500 to-red-600 text-white shadow-xl shadow-red-500/40 hover:scale-[1.02] hover:shadow-red-500/50'
-                    : isReady() && !(isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode))
-                      ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xl shadow-red-600/35 hover:scale-[1.02] hover:shadow-red-600/50 active:scale-95'
-                      : isDark ? 'bg-gray-800/60 text-gray-600 cursor-not-allowed border border-gray-800' : 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200'}`}>
-                {isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode) ? (
-                  <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Memproses...</>
-                ) : quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode) ? (
-                  <><Crown size={14} className="fill-current" /> Kuota Habis — Upgrade</>
-                ) : (
-                  <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</> 
-                    : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</> 
-                    : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</> 
-                    : currentMode === 'AI_SUMMARIZER' ? <><Sparkles size={14} /> Ringkas dengan AI</> 
-                    : currentMode === 'AI_PARAPHRASE' ? <><Sparkles size={14} /> Parafrase dengan AI</> 
-                    : currentMode === 'AI_TITLE_GEN' ? <><Sparkles size={14} /> Generate Judul</> 
-                    : currentMode === 'SCHEDULE_MAKER' ? <><Download size={14} /> Unduh PDF Jadwal</>
-                    : currentMode === 'TODO_LIST' ? <><CheckCircle2 size={14} /> Simpan Todo</>
-                    : currentMode === 'POMODORO' ? (pomoActive ? <><Pause size={14} /> Jeda Timer</> : <><Play size={14} /> Mulai Fokus</>)
-                    : <><Download size={14} /> Proses & Unduh</>}</>
-                )}
               </button>
+            )}
 
-              {/* Reset Button */}
-              {(singleFile || images.length > 0 || multiFiles.length > 0 || ocrResult || organizerLoaded || wordText || aiResult || aiParaphraseText) && (
-                <button onClick={resetState} className={`w-full py-2.5 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 ${isDark ? 'text-gray-600 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'}`}>
-                  <Trash2 size={11} /> Reset
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+              {/* Left: Tool UI */}
+              <div className="lg:col-span-3 space-y-4">
+                <div className={`p-5 rounded-2xl border ${isDark ? 'bg-[#0C101C]/90 border-gray-800/60 shadow-xl shadow-black/30' : 'bg-white border-gray-100 shadow-md shadow-gray-200/60'}`}>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                    <span className="w-1 h-3 rounded-full bg-red-600 inline-block" />
+                    {cfg.label}
+                  </p>
+                  {renderUploadArea()}
+                  {renderModeUI()}
+                </div>
+
+                {/* Tips */}
+                <div className={`p-3.5 rounded-2xl border flex gap-2.5 ${isDark ? 'bg-gray-900/30 border-gray-800' : 'bg-amber-50 border-amber-100'}`}>
+                  <Lightbulb size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                  <p className={`text-[11px] leading-relaxed ${isDark ? 'text-gray-500' : 'text-amber-700'}`}>{cfg.tip}</p>
+                </div>
+              </div>
+
+              {/* Right: Action Panel */}
+              <div className="lg:col-span-2 space-y-3">
+                {/* Quota Card */}
+                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C]/90 border-gray-800/60 shadow-xl shadow-black/30' : 'bg-white border-gray-100 shadow-md shadow-gray-200/60'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Kuota Download</span>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isPremium ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
+                      {isPremium ? 'Premium' : 'Gratis'}
+                    </span>
+                  </div>
+                  <div className={`w-full h-2 rounded-full overflow-hidden mb-1.5 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+                    <div className={`h-full rounded-full transition-all duration-700 ${isPremium ? 'bg-gradient-to-r from-orange-400 to-red-500' : quotaFull ? 'bg-red-600' : 'bg-red-500'}`} style={{ width: `${quotaPct}%` }} />
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={`text-[10px] font-black ${quotaFull ? 'text-red-500' : 'text-red-600'}`}>{downloadCount}/{MAX_QUOTA}</span>
+                    {!isPremium && <span className={`text-[9px] ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Reset tiap 15 hari</span>}
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <button disabled={(!isReady() && !quotaFull) || (isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode))} onClick={handleMainAction}
+                  className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 relative overflow-hidden
+                  ${quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode)
+                      ? 'bg-gradient-to-r from-orange-500 via-red-500 to-red-600 text-white shadow-xl shadow-red-500/40 hover:scale-[1.02] hover:shadow-red-500/50'
+                      : isReady() && !(isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode))
+                        ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xl shadow-red-600/35 hover:scale-[1.02] hover:shadow-red-600/50 active:scale-95'
+                        : isDark ? 'bg-gray-800/60 text-gray-600 cursor-not-allowed border border-gray-800' : 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200'}`}>
+                  {isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode) ? (
+                    <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Memproses...</>
+                  ) : quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode) ? (
+                    <><Crown size={14} className="fill-current" /> Kuota Habis — Upgrade</>
+                  ) : (
+                    <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</>
+                      : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</>
+                        : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</>
+                          : currentMode === 'AI_SUMMARIZER' ? <><Sparkles size={14} /> Ringkas dengan AI</>
+                            : currentMode === 'AI_PARAPHRASE' ? <><Sparkles size={14} /> Parafrase dengan AI</>
+                              : currentMode === 'AI_TITLE_GEN' ? <><Sparkles size={14} /> Generate Judul</>
+                                : currentMode === 'SCHEDULE_MAKER' ? <><Download size={14} /> Unduh PDF Jadwal</>
+                                  : currentMode === 'TODO_LIST' ? <><CheckCircle2 size={14} /> Simpan Todo</>
+                                    : currentMode === 'POMODORO' ? (pomoActive ? <><Pause size={14} /> Jeda Sesi</> : <><Play size={14} /> Mulai Sesi</>)
+                                      : <><Download size={14} /> Proses & Unduh</>}</>
+                  )}
                 </button>
-              )}
 
-              {/* Info Card */}
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-white/[0.02] border-gray-800/60' : 'bg-gray-50/80 border-gray-100'}`}>
-                <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Cara Pakai</p>
-                <div className="space-y-1.5">
-                  {[
-                    cfg.noFile ? 'Isi form yang tersedia' : `Upload ${cfg.multi ? 'beberapa file' : 'satu file'}`,
-                    'Klik tombol proses di atas',
-                    'File langsung terunduh otomatis',
-                  ].map((step, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-red-600/20 text-red-600 text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
-                      <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{step}</span>
-                    </div>
-                  ))}
+                {/* Reset Button */}
+                {(singleFile || images.length > 0 || multiFiles.length > 0 || ocrResult || organizerLoaded || wordText || aiResult || aiParaphraseText) && (
+                  <button onClick={resetState} className={`w-full py-2.5 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 ${isDark ? 'text-gray-600 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <Trash2 size={11} /> Reset
+                  </button>
+                )}
+
+                {/* Info Card */}
+                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-white/[0.02] border-gray-800/60' : 'bg-gray-50/80 border-gray-100'}`}>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Cara Pakai</p>
+                  <div className="space-y-1.5">
+                    {[
+                      cfg.noFile ? 'Isi form yang tersedia' : `Upload ${cfg.multi ? 'beberapa file' : 'satu file'}`,
+                      'Klik tombol proses di atas',
+                      'File langsung terunduh otomatis',
+                    ].map((step, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="w-4 h-4 rounded-full bg-red-600/20 text-red-600 text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{step}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </main>
 
@@ -1985,27 +1990,34 @@ export default function Home() {
       <nav className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t backdrop-blur-xl
         ${isDark ? 'bg-[#060912]/95 border-gray-800' : 'bg-white/95 border-gray-200'}`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="flex items-stretch overflow-x-auto scrollbar-none">
-          {MENU_GROUPS.map(group => {
-            const isActive = group.items.some(i => i.id === currentMode);
-            return (
-              <button key={group.label} onClick={() => {
-                const firstItem = group.items[0];
-                setCurrentMode(firstItem.id); resetState(); setIsSidebarOpen(false);
-              }}
-                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 px-1 relative transition-colors
-                  ${isActive ? 'text-red-600' : isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-red-600 rounded-full" />}
-                <span className="text-base">{group.label === 'Konversi' ? '🔄' : group.label === 'PDF Tools' ? '📄' : group.label === 'Gambar' ? '🖼️' : group.label === 'AI Tools' ? '🤖' : group.label === 'Produktivitas' ? '⏱️' : group.label === 'Mahasiswa' ? '🎓' : group.label === 'Teks & Warna' ? '✏️' : '✨'}</span>
-                <span className="text-[8px] font-black uppercase tracking-wider truncate w-full text-center leading-tight">{group.label}</span>
-              </button>
-            );
-          })}
-          <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className={`flex-shrink-0 flex flex-col items-center gap-0.5 py-2.5 px-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-            {isDark ? <Moon size={17} className="text-blue-400" /> : <Sun size={17} className="text-orange-400" />}
-            <span className="text-[8px] font-black uppercase">Tema</span>
+        <div className="flex items-center justify-around">
+          
+          <button onClick={() => setIsSidebarOpen(true)}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 transition-colors ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-red-600'}`}>
+            <Menu size={20} />
+            <span className="text-[9px] font-black uppercase tracking-widest">Menu</span>
           </button>
+
+          <button onClick={() => { setCurrentMode('PICTURE_TO_PDF'); resetState(); window.scrollTo(0,0); }}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 transition-colors ${isDark ? 'text-red-500' : 'text-red-600'}`}>
+            <Zap size={20} className={currentMode === 'PICTURE_TO_PDF' ? 'fill-current' : ''} />
+            <span className="text-[9px] font-black uppercase tracking-widest">Home</span>
+          </button>
+
+          {!isPremium && (
+            <button onClick={() => router.push('/upgrade')}
+              className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 transition-colors ${isDark ? 'text-orange-400' : 'text-orange-500'}`}>
+              <Crown size={20} />
+              <span className="text-[9px] font-black uppercase tracking-widest">Premium</span>
+            </button>
+          )}
+
+          <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 transition-colors ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-red-600'}`}>
+            {isDark ? <Moon size={20} className="text-blue-400" /> : <Sun size={20} className="text-orange-400" />}
+            <span className="text-[9px] font-black uppercase tracking-widest">Tema</span>
+          </button>
+
         </div>
       </nav>
     </div>

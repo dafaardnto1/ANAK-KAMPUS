@@ -12,6 +12,7 @@ export default function UpgradePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -32,7 +33,44 @@ export default function UpgradePage() {
     if (!user) return;
     setLoading(true);
     try {
-      // Panggil API route untuk buat transaksi Midtrans
+      // 1. Cek jika ada Promo Code (Voucher VVIP)
+      if (promoCode.trim().length > 0) {
+        const codeUpper = promoCode.trim().toUpperCase();
+        // Cek voucher di DB
+        const { data: voucherData, error: voucherErr } = await supabase
+          .from('vouchers')
+          .select('*')
+          .eq('code', codeUpper)
+          .single();
+
+        if (voucherErr || !voucherData) {
+          alert('Kode promo tidak valid atau tidak ditemukan.');
+          setLoading(false);
+          return;
+        }
+
+        if (voucherData.is_used) {
+          alert('Kode promo ini telah digunakan sebelumnya.');
+          setLoading(false);
+          return;
+        }
+
+        // Voucher valid & belum dipakai -> Claim!
+        // Update voucher status
+        await supabase.from('vouchers').update({ is_used: true, used_by: user.email }).eq('id', voucherData.id);
+        
+        // Update user premium status
+        await supabase.from('profiles').update({ is_premium: true }).eq('id', user.id);
+
+        // Log Aktivitas
+        await supabase.from('activity_logs').insert([{ action: 'CLAIM_VOUCHER_VVIP', user_email: user.email }]);
+
+        alert('Berhasil. Anda telah mengklaim Voucher VVIP dan mendapatkan status Premium.');
+        router.push('/');
+        return; // Selesai, jangan lanjut ke Midtrans
+      }
+
+      // 2. Jika tidak ada promo, lanjut ke Midtrans
       const res = await fetch('/api/payment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,16 +84,18 @@ export default function UpgradePage() {
           console.log('Payment success', result);
           // Update is_premium di Supabase
           await supabase.from('profiles').update({ is_premium: true }).eq('id', user.id);
-          alert('🎉 Upgrade berhasil! Kamu sekarang Premium!');
+          // Log aktivitas
+          await supabase.from('activity_logs').insert([{ action: 'UPGRADE_PREMIUM_PAID', user_email: user.email }]);
+          alert('Upgrade berhasil. Anda sekarang memiliki akses Premium.');
           router.push('/');
         },
         onPending: (result: any) => {
           console.log('Payment pending', result);
-          alert('Pembayaran pending. Selesaikan pembayaran kamu!');
+          alert('Pembayaran tertunda. Harap selesaikan pembayaran Anda.');
         },
         onError: (result: any) => {
           console.error('Payment error', result);
-          alert('Pembayaran gagal. Coba lagi!');
+          alert('Pembayaran gagal. Silakan coba lagi.');
         },
         onClose: () => {
           console.log('Snap closed');
@@ -63,7 +103,7 @@ export default function UpgradePage() {
       });
     } catch (e) {
       console.error(e);
-      alert('Error membuat transaksi. Coba lagi!');
+      alert('Error membuat transaksi atau cek promo. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -125,11 +165,18 @@ export default function UpgradePage() {
             ))}
           </div>
 
+          {/* PROMO / VOUCHER */}
+          <div className="mb-6">
+            <label className="text-[10px] font-black uppercase text-gray-500 ml-1 mb-1.5 block">Punya Voucher VVIP / Promo?</label>
+            <input type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Masukkan Kode (Opsional)"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:border-red-500 outline-none transition-colors uppercase" />
+          </div>
+
           {/* BUTTON */}
           <button onClick={handleUpgrade} disabled={loading}
             className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest duration-200 flex items-center justify-center gap-2
               ${loading ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-xl shadow-red-500/30 hover:scale-[1.02] active:scale-95'}`}>
-            {loading ? <><Loader2 size={14} className="animate-spin"/> Memproses...</> : <><Crown size={14} className="fill-current"/> Upgrade Sekarang</>}
+            {loading ? <><Loader2 size={14} className="animate-spin"/> Memproses...</> : <><Crown size={14} className="fill-current"/> {promoCode ? 'Klaim Voucher' : 'Upgrade Sekarang'}</>}
           </button>
 
           <p className="text-center text-[10px] text-gray-400 mt-4">
