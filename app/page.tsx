@@ -23,7 +23,8 @@ import {
   Calculator, BookOpen, CaseSensitive,
   Palette, Type, FileSignature, Plus,
   ChevronRight, CheckCircle2, AlertCircle,
-  Copy, Check, Clipboard
+  Copy, Check, Clipboard,
+  Calendar, Timer, CheckSquare, Play, Pause, RefreshCw, Music
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,8 @@ interface ImageItem { id: string; src: string; name: string; rotation: number; }
 interface PageItem { index: number; rotation: number; deleted: boolean; }
 interface IpkCourse { id: string; name: string; grade: string; credit: string; }
 interface PustakaEntry { id: string; author: string; year: string; title: string; pub: string; type: string; }
+interface TodoItem { id: string; text: string; done: boolean; }
+interface ScheduleItem { id: string; day: string; time: string; course: string; room: string; color: string; }
 
 // ─── Static Data ──────────────────────────────────────────────────────────────
 const MENU_GROUPS = [
@@ -80,6 +83,13 @@ const MENU_GROUPS = [
     ]
   },
   {
+    label: 'Produktivitas', icon: 'Timer', items: [
+      { id: 'POMODORO', name: 'Pomodoro Timer', icon: 'Timer' },
+      { id: 'TODO_LIST', name: 'To-Do List', icon: 'CheckSquare' },
+      { id: 'SCHEDULE_MAKER', name: 'Jadwal Kuliah', icon: 'Calendar' },
+    ]
+  },
+  {
     label: 'Teks & Warna', icon: 'Type', items: [
       { id: 'WORD_COUNTER', name: 'Hitung Kata', icon: 'CaseSensitive' },
       { id: 'LOREM_IPSUM', name: 'Lorem Ipsum', icon: 'Type' },
@@ -125,6 +135,9 @@ const MODE_CONFIG: Record<string, { accept: string; multi: boolean; label: strin
   AI_SUMMARIZER: { accept: ".pdf", multi: false, label: "Upload PDF jurnal / artikel ilmiah", tip: "AI akan merangkum isi, metode, hasil, dan kesimpulan secara otomatis. Didukung Groq LLaMA 3.3 70B.", noFile: false },
   AI_PARAPHRASE: { accept: "", multi: false, label: "Tempel teks yang ingin diparafrase", tip: "AI menyusun ulang kalimat secara signifikan agar unik & lolos deteksi plagiarisme, sambil mempertahankan makna.", noFile: true },
   AI_TITLE_GEN: { accept: "", multi: false, label: "Isi jurusan dan minat penelitian kamu", tip: "AI akan generate 10 ide judul skripsi/penelitian yang spesifik, metodologis, dan relevan dengan bidangmu.", noFile: true },
+  POMODORO: { accept: "", multi: false, label: "Fokus belajar dengan metode Pomodoro", tip: "Atur waktu fokus dan istirahat. Gunakan untuk skripsian atau nugas berat.", noFile: true },
+  TODO_LIST: { accept: "", multi: false, label: "Catat tugas dan deadline", tip: "Kelola tugas kuliahmu. Centang jika selesai.", noFile: true },
+  SCHEDULE_MAKER: { accept: "", multi: false, label: "Buat jadwal kuliah estetik", tip: "Masukkan mata kuliah, hari, dan jam. Bisa didownload sebagai gambar untuk wallpaper HP.", noFile: true },
 };
 
 const getIcon = (iconName: string, size = 15) => {
@@ -139,6 +152,7 @@ const getIcon = (iconName: string, size = 15) => {
     BookOpen: <BookOpen size={size} />, FileSignature: <FileSignature size={size} />,
     CaseSensitive: <CaseSensitive size={size} />, Type: <Type size={size} />, Palette: <Palette size={size} />,
     QrCode: <QrCode size={size} />, ScanText: <ScanText size={size} />,
+    Calendar: <Calendar size={size} />, Timer: <Timer size={size} />, CheckSquare: <CheckSquare size={size} />,
   };
   return map[iconName] ?? <FileImage size={size} />;
 };
@@ -212,6 +226,15 @@ export default function Home() {
   const [aiTitleJurusan, setAiTitleJurusan] = useState('');
   const [aiTitleMinat, setAiTitleMinat] = useState('');
   const [aiCopied, setAiCopied] = useState(false);
+
+  // Productivity state
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [newTodo, setNewTodo] = useState('');
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [newSchedule, setNewSchedule] = useState({ day: 'Senin', time: '', course: '', room: '', color: '#EF4444' });
+  const [pomoTime, setPomoTime] = useState(25 * 60);
+  const [pomoActive, setPomoActive] = useState(false);
+  const [pomoMode, setPomoMode] = useState<'focus' | 'break'>('focus');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sigInputRef = useRef<HTMLInputElement>(null);
@@ -790,6 +813,45 @@ export default function Home() {
     });
   }, [aiResult, showToast]);
 
+  // ─── Productivity Handlers ────────────────────────────────────────────────────
+  const togglePomo = useCallback(() => setPomoActive(p => !p), []);
+  const resetPomo = useCallback((mode: 'focus' | 'break') => {
+    setPomoActive(false);
+    setPomoMode(mode);
+    setPomoTime(mode === 'focus' ? 25 * 60 : 5 * 60);
+  }, []);
+
+  const handleScheduleDownload = useCallback(async () => {
+    if (schedules.length === 0) { showToast('Tambahkan jadwal dulu!', 'error'); return; }
+    const doc = new jsPDF();
+    doc.setFillColor(30, 30, 30); doc.rect(0, 0, 210, 297, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(24);
+    doc.text('JADWAL KULIAH', 105, 30, { align: 'center' });
+    
+    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    let y = 50;
+    days.forEach(day => {
+      const daySchedules = schedules.filter(s => s.day === day).sort((a, b) => a.time.localeCompare(b.time));
+      if (daySchedules.length > 0) {
+        doc.setFontSize(14); doc.setTextColor(239, 68, 68); doc.text(day, 20, y);
+        y += 10;
+        daySchedules.forEach(s => {
+          doc.setFontSize(12); doc.setTextColor(200, 200, 200);
+          doc.text(`${s.time} - ${s.course} (${s.room || '-'})`, 30, y);
+          y += 8;
+        });
+        y += 5;
+      }
+    });
+    doc.save('Jadwal_Kuliah.pdf');
+    await finalizeProcess();
+  }, [schedules, finalizeProcess, showToast]);
+
+  const handleTodoList = useCallback(() => {
+    showToast('Todo List berhasil disimpan!');
+    finalizeProcess();
+  }, [finalizeProcess, showToast]);
+
   // ─── Reset ────────────────────────────────────────────────────────────────────
   const resetState = useCallback(() => {
     setImages([]); setSingleFile(null); setMultiFiles([]);
@@ -817,12 +879,15 @@ export default function Home() {
     if (currentMode === 'AI_SUMMARIZER') return singleFile !== null;
     if (currentMode === 'AI_PARAPHRASE') return aiParaphraseText.trim().length > 0;
     if (currentMode === 'AI_TITLE_GEN') return aiTitleJurusan.trim().length > 0;
+    if (currentMode === 'SCHEDULE_MAKER') return schedules.length > 0;
+    if (currentMode === 'TODO_LIST') return todos.length > 0;
+    if (currentMode === 'POMODORO') return true;
     if (cfg.noFile) return true;
     return singleFile !== null;
-  }, [currentMode, images.length, multiFiles.length, qrContent, organizerLoaded, organizerPages, singleFile, sigFile, cfg, aiParaphraseText, aiTitleJurusan]);
+  }, [currentMode, images.length, multiFiles.length, qrContent, organizerLoaded, organizerPages, singleFile, sigFile, cfg, aiParaphraseText, aiTitleJurusan, schedules.length, todos.length]);
 
   const handleMainAction = useCallback(async () => {
-    if (quotaFull) { openLoginModal('login'); return; }
+    if (quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode)) { openLoginModal('login'); return; }
     setIsProcessing(true);
     try {
       const map: Record<string, () => Promise<void> | void> = {
@@ -837,6 +902,7 @@ export default function Home() {
         PUSTAKA_GENERATOR: handlePustakaGenerator, SURAT_GENERATOR: handleSuratGenerator,
         WORD_COUNTER: handleWordCounter, LOREM_IPSUM: handleLoremIpsum, COLOR_PICKER: handleColorPicker,
         AI_SUMMARIZER: handleAiSummarizer, AI_PARAPHRASE: handleAiParaphrase, AI_TITLE_GEN: handleAiTitleGen,
+        SCHEDULE_MAKER: handleScheduleDownload, TODO_LIST: handleTodoList, POMODORO: togglePomo,
       };
       await map[currentMode]?.();
     } catch (e) {
@@ -849,15 +915,56 @@ export default function Home() {
     handlePageOrganizer, handleAddSignature, handleQrCode, handleOcr, handleImageCompressor,
     handleImageConverter, handleImageResizer, handleCoverGenerator, handleIpkCalculator,
     handlePustakaGenerator, handleSuratGenerator, handleWordCounter, handleLoremIpsum,
-    handleColorPicker, handleAiSummarizer, handleAiParaphrase, handleAiTitleGen, showToast]);
+    handleColorPicker, handleAiSummarizer, handleAiParaphrase, handleAiTitleGen, 
+    handleScheduleDownload, handleTodoList, togglePomo, showToast]);
 
   // ─── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (pomoActive) {
+      interval = setInterval(() => {
+        setPomoTime(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setPomoActive(false);
+            setTimeout(() => {
+              showToast(pomoMode === 'focus' ? 'Waktu fokus selesai! Istirahat yuk 🎉' : 'Waktu istirahat selesai! Lanjut fokus 🔥');
+              resetPomo(pomoMode === 'focus' ? 'break' : 'focus');
+            }, 100);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [pomoActive, pomoMode, resetPomo, showToast]);
+
+  useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem('anak_kampus_quota');
-    if (saved) setLocalCount(parseInt(saved));
+    const savedQuota = localStorage.getItem('anak_kampus_quota');
+    if (savedQuota) setLocalCount(parseInt(savedQuota));
+    
+    try {
+      const savedTodos = localStorage.getItem('anak_kampus_todos');
+      if (savedTodos) setTodos(JSON.parse(savedTodos));
+      
+      const savedSchedules = localStorage.getItem('anak_kampus_schedules');
+      if (savedSchedules) setSchedules(JSON.parse(savedSchedules));
+    } catch (e) {
+      console.error('Error loading productivity data', e);
+    }
+
     checkSession();
   }, [checkSession]);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('anak_kampus_todos', JSON.stringify(todos));
+  }, [todos, mounted]);
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem('anak_kampus_schedules', JSON.stringify(schedules));
+  }, [schedules, mounted]);
 
   // ─── Word Counter Stats ───────────────────────────────────────────────────────
   const wordStats = useMemo(() => {
@@ -1401,6 +1508,103 @@ export default function Home() {
           </div>
         );
 
+      // ── PRODUCTIVITY TOOLS ───────────────────────────────────────────────────
+      case 'POMODORO':
+        return (
+          <div className="space-y-4 mt-1 text-center">
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest
+              ${isDark ? 'bg-rose-900/40 text-rose-400 border border-rose-800/50' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+              <Timer size={10} /> Pomodoro Timer
+            </div>
+            <div className={`p-8 rounded-full aspect-square w-64 mx-auto flex flex-col items-center justify-center border-8 transition-colors
+              ${pomoMode === 'focus' ? 'border-rose-500 bg-rose-500/10' : 'border-emerald-500 bg-emerald-500/10'}`}>
+              <div className="text-6xl font-black tabular-nums tracking-tighter">
+                {String(Math.floor(pomoTime / 60)).padStart(2, '0')}:{String(pomoTime % 60).padStart(2, '0')}
+              </div>
+              <div className="text-sm font-bold uppercase tracking-widest mt-2 opacity-70">
+                {pomoMode === 'focus' ? 'Fokus Belajar' : 'Waktu Istirahat'}
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button onClick={togglePomo} className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 hover:scale-105 transition-all shadow-lg shadow-red-600/30">
+                {pomoActive ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+              </button>
+              <button onClick={() => resetPomo(pomoMode)} className={`p-4 rounded-full border transition-all hover:bg-gray-100 dark:hover:bg-gray-800 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <RefreshCw size={24} className={isDark ? 'text-gray-400' : 'text-gray-600'} />
+              </button>
+            </div>
+            <div className="flex justify-center gap-2 mt-4">
+              <button onClick={() => resetPomo('focus')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${pomoMode === 'focus' ? 'bg-rose-600 text-white' : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Fokus (25m)</button>
+              <button onClick={() => resetPomo('break')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${pomoMode === 'break' ? 'bg-emerald-600 text-white' : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Istirahat (5m)</button>
+            </div>
+          </div>
+        );
+
+      case 'TODO_LIST':
+        return (
+          <div className="space-y-4 mt-1">
+            <div className="flex gap-2">
+              <input className={inputCls} placeholder="Tugas baru..." value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && newTodo) { setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]); setNewTodo(''); } }} />
+              <button onClick={() => { if(newTodo) { setTodos([...todos, { id: Date.now().toString(), text: newTodo, done: false }]); setNewTodo(''); } }} className="px-4 bg-red-600 text-white rounded-xl hover:bg-red-700"><Plus size={18} /></button>
+            </div>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {todos.map(t => (
+                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${t.done ? isDark ? 'bg-gray-900/40 border-gray-800/40 opacity-50' : 'bg-gray-50 border-gray-100 opacity-60' : isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                  <button onClick={() => setTodos(todos.map(x => x.id === t.id ? { ...x, done: !x.done } : x))} className={`w-5 h-5 flex-shrink-0 rounded flex items-center justify-center border transition-colors ${t.done ? 'bg-emerald-500 border-emerald-500 text-white' : isDark ? 'border-gray-600' : 'border-gray-300'}`}>
+                    {t.done && <Check size={12} strokeWidth={3} />}
+                  </button>
+                  <span className={`flex-1 text-sm ${t.done ? 'line-through' : ''}`}>{t.text}</span>
+                  <button onClick={() => setTodos(todos.filter(x => x.id !== t.id))} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14} /></button>
+                </div>
+              ))}
+              {todos.length === 0 && <div className={`text-center p-8 text-sm font-medium ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Belum ada tugas. Yay! 🎉</div>}
+            </div>
+          </div>
+        );
+
+      case 'SCHEDULE_MAKER':
+        return (
+          <div className="space-y-4 mt-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={labelCls}>Hari</label>
+                <select className={inputCls} value={newSchedule.day} onChange={e => setNewSchedule({...newSchedule, day: e.target.value})}>
+                  {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div><label className={labelCls}>Waktu (Mulai)</label><input type="time" className={inputCls} value={newSchedule.time} onChange={e => setNewSchedule({...newSchedule, time: e.target.value})} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={labelCls}>Mata Kuliah</label><input className={inputCls} placeholder="Nama Matkul..." value={newSchedule.course} onChange={e => setNewSchedule({...newSchedule, course: e.target.value})} /></div>
+              <div><label className={labelCls}>Ruangan</label><input className={inputCls} placeholder="Gedung A..." value={newSchedule.room} onChange={e => setNewSchedule({...newSchedule, room: e.target.value})} /></div>
+            </div>
+            <button onClick={() => { if(newSchedule.time && newSchedule.course) { setSchedules([...schedules, { id: Date.now().toString(), ...newSchedule }]); setNewSchedule({...newSchedule, time: '', course: '', room: ''}); } }} className="w-full py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 text-xs flex items-center justify-center gap-2"><Plus size={14} /> Tambah Jadwal</button>
+            
+            <div className="space-y-3 mt-4 max-h-[300px] overflow-y-auto">
+              {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map(day => {
+                const daySchedules = schedules.filter(s => s.day === day).sort((a,b) => a.time.localeCompare(b.time));
+                if (daySchedules.length === 0) return null;
+                return (
+                  <div key={day} className={`p-3 rounded-xl border ${isDark ? 'bg-[#0C101C]/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+                    <h3 className="text-xs font-black uppercase text-red-500 mb-2">{day}</h3>
+                    <div className="space-y-2">
+                      {daySchedules.map(s => (
+                        <div key={s.id} className={`flex items-center gap-3 p-2 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                          <div className="text-xs font-bold bg-red-500/10 text-red-600 px-2 py-1 rounded">{s.time}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold truncate">{s.course}</div>
+                            <div className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{s.room || '-'}</div>
+                          </div>
+                          <button onClick={() => setSchedules(schedules.filter(x => x.id !== s.id))} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -1723,19 +1927,28 @@ export default function Home() {
               </div>
 
               {/* Action Button */}
-              <button disabled={(!isReady() && !quotaFull) || isProcessing} onClick={handleMainAction}
+              <button disabled={(!isReady() && !quotaFull) || (isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode))} onClick={handleMainAction}
                 className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 relative overflow-hidden
-                  ${quotaFull
+                  ${quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode)
                     ? 'bg-gradient-to-r from-orange-500 via-red-500 to-red-600 text-white shadow-xl shadow-red-500/40 hover:scale-[1.02] hover:shadow-red-500/50'
-                    : isReady() && !isProcessing
+                    : isReady() && !(isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode))
                       ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xl shadow-red-600/35 hover:scale-[1.02] hover:shadow-red-600/50 active:scale-95'
                       : isDark ? 'bg-gray-800/60 text-gray-600 cursor-not-allowed border border-gray-800' : 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200'}`}>
-                {isProcessing ? (
+                {isProcessing && !['POMODORO', 'TODO_LIST'].includes(currentMode) ? (
                   <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Memproses...</>
-                ) : quotaFull ? (
+                ) : quotaFull && !['POMODORO', 'TODO_LIST'].includes(currentMode) ? (
                   <><Crown size={14} className="fill-current" /> Kuota Habis — Upgrade</>
                 ) : (
-                  <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</> : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</> : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</> : currentMode === 'AI_SUMMARIZER' ? <><Sparkles size={14} /> Ringkas dengan AI</> : currentMode === 'AI_PARAPHRASE' ? <><Sparkles size={14} /> Parafrase dengan AI</> : currentMode === 'AI_TITLE_GEN' ? <><Sparkles size={14} /> Generate Judul</> : <><Download size={14} /> Proses & Unduh</>}</>
+                  <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</> 
+                    : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</> 
+                    : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</> 
+                    : currentMode === 'AI_SUMMARIZER' ? <><Sparkles size={14} /> Ringkas dengan AI</> 
+                    : currentMode === 'AI_PARAPHRASE' ? <><Sparkles size={14} /> Parafrase dengan AI</> 
+                    : currentMode === 'AI_TITLE_GEN' ? <><Sparkles size={14} /> Generate Judul</> 
+                    : currentMode === 'SCHEDULE_MAKER' ? <><Download size={14} /> Unduh PDF Jadwal</>
+                    : currentMode === 'TODO_LIST' ? <><CheckCircle2 size={14} /> Simpan Todo</>
+                    : currentMode === 'POMODORO' ? (pomoActive ? <><Pause size={14} /> Jeda Timer</> : <><Play size={14} /> Mulai Fokus</>)
+                    : <><Download size={14} /> Proses & Unduh</>}</>
                 )}
               </button>
 
@@ -1783,7 +1996,7 @@ export default function Home() {
                 className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 px-1 relative transition-colors
                   ${isActive ? 'text-red-600' : isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                 {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-red-600 rounded-full" />}
-                <span className="text-base">{group.label === 'Konversi' ? '🔄' : group.label === 'PDF Tools' ? '📄' : group.label === 'Gambar' ? '🖼️' : group.label === 'AI Tools' ? '🤖' : group.label === 'Mahasiswa' ? '🎓' : group.label === 'Teks & Warna' ? '✏️' : '✨'}</span>
+                <span className="text-base">{group.label === 'Konversi' ? '🔄' : group.label === 'PDF Tools' ? '📄' : group.label === 'Gambar' ? '🖼️' : group.label === 'AI Tools' ? '🤖' : group.label === 'Produktivitas' ? '⏱️' : group.label === 'Mahasiswa' ? '🎓' : group.label === 'Teks & Warna' ? '✏️' : '✨'}</span>
                 <span className="text-[8px] font-black uppercase tracking-wider truncate w-full text-center leading-tight">{group.label}</span>
               </button>
             );
