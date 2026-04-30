@@ -73,6 +73,13 @@ const MENU_GROUPS = [
     ]
   },
   {
+    label: 'AI Tools', icon: 'Sparkles', items: [
+      { id: 'AI_SUMMARIZER', name: 'Ringkas Jurnal / PDF', icon: 'Sparkles' },
+      { id: 'AI_PARAPHRASE', name: 'Parafrase & Anti-Plagiat', icon: 'RotateCw' },
+      { id: 'AI_TITLE_GEN', name: 'Generator Judul Skripsi', icon: 'GraduationCap' },
+    ]
+  },
+  {
     label: 'Teks & Warna', icon: 'Type', items: [
       { id: 'WORD_COUNTER', name: 'Hitung Kata', icon: 'CaseSensitive' },
       { id: 'LOREM_IPSUM', name: 'Lorem Ipsum', icon: 'Type' },
@@ -115,6 +122,9 @@ const MODE_CONFIG: Record<string, { accept: string; multi: boolean; label: strin
   WORD_COUNTER: { accept: "", multi: false, label: "Tempel teks untuk dihitung", tip: "Hitung kata, karakter, kalimat, dan estimasi waktu baca.", noFile: true },
   LOREM_IPSUM: { accept: "", multi: false, label: "Generate teks dummy", tip: "Atur jumlah paragraf yang dibutuhkan.", noFile: true },
   COLOR_PICKER: { accept: "", multi: false, label: "Pilih warna untuk desain", tip: "Salin HEX, RGB, atau HSL dengan satu klik.", noFile: true },
+  AI_SUMMARIZER: { accept: ".pdf", multi: false, label: "Upload PDF jurnal / artikel ilmiah", tip: "AI akan merangkum isi, metode, hasil, dan kesimpulan secara otomatis. Didukung Groq LLaMA 3.3 70B.", noFile: false },
+  AI_PARAPHRASE: { accept: "", multi: false, label: "Tempel teks yang ingin diparafrase", tip: "AI menyusun ulang kalimat secara signifikan agar unik & lolos deteksi plagiarisme, sambil mempertahankan makna.", noFile: true },
+  AI_TITLE_GEN: { accept: "", multi: false, label: "Isi jurusan dan minat penelitian kamu", tip: "AI akan generate 10 ide judul skripsi/penelitian yang spesifik, metodologis, dan relevan dengan bidangmu.", noFile: true },
 };
 
 const getIcon = (iconName: string, size = 15) => {
@@ -194,6 +204,14 @@ export default function Home() {
   const [loremCount, setLoremCount] = useState(3);
   const [pickedColor, setPickedColor] = useState('#EF4444');
   const [copiedColor, setCopiedColor] = useState('');
+
+  // AI Tools state
+  const [aiResult, setAiResult] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiParaphraseText, setAiParaphraseText] = useState('');
+  const [aiTitleJurusan, setAiTitleJurusan] = useState('');
+  const [aiTitleMinat, setAiTitleMinat] = useState('');
+  const [aiCopied, setAiCopied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sigInputRef = useRef<HTMLInputElement>(null);
@@ -693,6 +711,85 @@ export default function Home() {
     setQrPreview(await QRCode.toDataURL(qrContent, { width: 200, margin: 2 }));
   }, [qrContent]);
 
+  // ─── AI Handlers ──────────────────────────────────────────────────────────────
+  const callAI = useCallback(async (mode: string, text: string): Promise<string> => {
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, text }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'AI error');
+    return data.result as string;
+  }, []);
+
+  const handleAiSummarizer = useCallback(async () => {
+    if (!singleFile) { showToast('Upload PDF dulu!', 'error'); return; }
+    setAiResult('');
+    setAiLoading(true);
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const pdf = await pdfjsLib.getDocument({ data: await singleFile.arrayBuffer() }).promise;
+      const texts: string[] = [];
+      const maxPages = Math.min(pdf.numPages, 15);
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        texts.push(content.items.map((x: any) => x.str).join(' '));
+      }
+      const fullText = texts.join('\n').slice(0, 12000);
+      if (!fullText.trim()) { showToast('PDF tidak bisa dibaca (mungkin berbasis scan)', 'error'); return; }
+      const result = await callAI('SUMMARIZE', fullText);
+      setAiResult(result);
+      showToast('Ringkasan selesai!');
+    } catch (e: any) {
+      showToast(e.message || 'Gagal meringkas PDF', 'error');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [singleFile, callAI, showToast]);
+
+  const handleAiParaphrase = useCallback(async () => {
+    if (!aiParaphraseText.trim()) { showToast('Isi teks terlebih dahulu!', 'error'); return; }
+    setAiResult('');
+    setAiLoading(true);
+    try {
+      const result = await callAI('PARAPHRASE', aiParaphraseText);
+      setAiResult(result);
+      showToast('Parafrase selesai!');
+    } catch (e: any) {
+      showToast(e.message || 'Gagal memparafrase', 'error');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiParaphraseText, callAI, showToast]);
+
+  const handleAiTitleGen = useCallback(async () => {
+    if (!aiTitleJurusan.trim()) { showToast('Isi jurusan dulu!', 'error'); return; }
+    setAiResult('');
+    setAiLoading(true);
+    try {
+      const prompt = `Jurusan: ${aiTitleJurusan}\nMinat / Topik: ${aiTitleMinat || 'umum'}`;
+      const result = await callAI('TITLE_GEN', prompt);
+      setAiResult(result);
+      showToast('Judul berhasil digenerate!');
+    } catch (e: any) {
+      showToast(e.message || 'Gagal generate judul', 'error');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiTitleJurusan, aiTitleMinat, callAI, showToast]);
+
+  const copyAiResult = useCallback(() => {
+    if (!aiResult) return;
+    navigator.clipboard.writeText(aiResult).then(() => {
+      setAiCopied(true);
+      setTimeout(() => setAiCopied(false), 2000);
+      showToast('Hasil disalin!');
+    });
+  }, [aiResult, showToast]);
+
   // ─── Reset ────────────────────────────────────────────────────────────────────
   const resetState = useCallback(() => {
     setImages([]); setSingleFile(null); setMultiFiles([]);
@@ -708,6 +805,7 @@ export default function Home() {
     setWordText(''); setLoremCount(3); setPickedColor('#EF4444');
     setIpkNew({ name: '', grade: 'A', sks: '3' });
     setPustakaNew({ author: '', year: '', title: '', pub: '' });
+    setAiResult(''); setAiParaphraseText(''); setAiTitleJurusan(''); setAiTitleMinat('');
   }, []);
 
   const isReady = useCallback(() => {
@@ -716,9 +814,12 @@ export default function Home() {
     if (currentMode === 'QR_CODE') return qrContent.trim().length > 0;
     if (currentMode === 'PAGE_ORGANIZER') return organizerLoaded && organizerPages.some(p => !p.deleted);
     if (currentMode === 'ADD_SIGNATURE') return singleFile !== null && sigFile !== null;
+    if (currentMode === 'AI_SUMMARIZER') return singleFile !== null;
+    if (currentMode === 'AI_PARAPHRASE') return aiParaphraseText.trim().length > 0;
+    if (currentMode === 'AI_TITLE_GEN') return aiTitleJurusan.trim().length > 0;
     if (cfg.noFile) return true;
     return singleFile !== null;
-  }, [currentMode, images.length, multiFiles.length, qrContent, organizerLoaded, organizerPages, singleFile, sigFile, cfg]);
+  }, [currentMode, images.length, multiFiles.length, qrContent, organizerLoaded, organizerPages, singleFile, sigFile, cfg, aiParaphraseText, aiTitleJurusan]);
 
   const handleMainAction = useCallback(async () => {
     if (quotaFull) { openLoginModal('login'); return; }
@@ -735,6 +836,7 @@ export default function Home() {
         COVER_GENERATOR: handleCoverGenerator, IPK_CALCULATOR: handleIpkCalculator,
         PUSTAKA_GENERATOR: handlePustakaGenerator, SURAT_GENERATOR: handleSuratGenerator,
         WORD_COUNTER: handleWordCounter, LOREM_IPSUM: handleLoremIpsum, COLOR_PICKER: handleColorPicker,
+        AI_SUMMARIZER: handleAiSummarizer, AI_PARAPHRASE: handleAiParaphrase, AI_TITLE_GEN: handleAiTitleGen,
       };
       await map[currentMode]?.();
     } catch (e) {
@@ -747,7 +849,7 @@ export default function Home() {
     handlePageOrganizer, handleAddSignature, handleQrCode, handleOcr, handleImageCompressor,
     handleImageConverter, handleImageResizer, handleCoverGenerator, handleIpkCalculator,
     handlePustakaGenerator, handleSuratGenerator, handleWordCounter, handleLoremIpsum,
-    handleColorPicker, showToast]);
+    handleColorPicker, handleAiSummarizer, handleAiParaphrase, handleAiTitleGen, showToast]);
 
   // ─── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -801,7 +903,7 @@ export default function Home() {
 
   const labelCls = `block text-[10px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`;
 
-  const cardCls = `rounded-2xl border p-4 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white border-gray-100'}`;
+  const cardCls = `rounded-2xl border p-4 ${isDark ? 'bg-[#0C101C]/80 border-gray-800/60 shadow-lg shadow-black/20' : 'bg-white border-gray-100 shadow-sm'}`;
 
   // ─── Render Mode-Specific UI ──────────────────────────────────────────────────
   const renderModeUI = () => {
@@ -1142,6 +1244,163 @@ export default function Home() {
             </div>
           </div>
         );
+      // ── AI TOOLS ───────────────────────────────────────────────────────────────
+      case 'AI_SUMMARIZER':
+        return (
+          <div className="space-y-4 mt-1">
+            {/* AI badge */}
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest
+              ${isDark ? 'bg-purple-900/40 text-purple-400 border border-purple-800/50' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
+              <Sparkles size={10} /> Powered by Groq LLaMA 3.3 70B
+            </div>
+            {/* Result display */}
+            {aiLoading && (
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                  <span className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI sedang merangkum jurnal...</span>
+                </div>
+              </div>
+            )}
+            {aiResult && !aiLoading && (
+              <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-purple-800/40 bg-purple-900/10' : 'border-purple-100 bg-purple-50/50'}`}>
+                <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isDark ? 'border-purple-800/40 bg-purple-900/20' : 'border-purple-100 bg-purple-100/60'}`}>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-purple-500 flex items-center gap-1.5">
+                    <Sparkles size={10} /> Hasil Ringkasan AI
+                  </span>
+                  <button onClick={copyAiResult}
+                    className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors
+                      ${aiCopied ? 'bg-green-500 text-white' : isDark ? 'bg-purple-900/40 text-purple-400 hover:bg-purple-900/60' : 'bg-white text-purple-600 hover:bg-purple-50'}`}>
+                    {aiCopied ? <><Check size={10} /> Disalin!</> : <><Copy size={10} /> Salin</>}
+                  </button>
+                </div>
+                <div className={`p-4 text-xs leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto
+                  ${isDark ? 'text-gray-300' : 'text-gray-700'}
+                  [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-purple-300`}>
+                  {aiResult}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'AI_PARAPHRASE':
+        return (
+          <div className="space-y-4 mt-1">
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest
+              ${isDark ? 'bg-blue-900/40 text-blue-400 border border-blue-800/50' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+              <Sparkles size={10} /> AI Parafrase Anti-Plagiat
+            </div>
+            <div>
+              <label className={labelCls}>Teks Asli <span className={`normal-case font-normal ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>(maks 5.000 karakter)</span></label>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={6}
+                placeholder="Tempel abstrak, paragraf, atau teks yang ingin diparafrase..."
+                value={aiParaphraseText}
+                onChange={e => setAiParaphraseText(e.target.value.slice(0, 5000))}
+              />
+              <div className={`text-right text-[10px] mt-1 ${aiParaphraseText.length > 4500 ? 'text-orange-500' : isDark ? 'text-gray-700' : 'text-gray-400'}`}>
+                {aiParaphraseText.length}/5000
+              </div>
+            </div>
+            {aiLoading && (
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                  <span className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI sedang memparafrase...</span>
+                </div>
+              </div>
+            )}
+            {aiResult && !aiLoading && (
+              <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-blue-800/40 bg-blue-900/10' : 'border-blue-100 bg-blue-50/50'}`}>
+                <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isDark ? 'border-blue-800/40 bg-blue-900/20' : 'border-blue-100 bg-blue-100/60'}`}>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 flex items-center gap-1.5">
+                    <Sparkles size={10} /> Hasil Parafrase AI
+                  </span>
+                  <button onClick={copyAiResult}
+                    className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors
+                      ${aiCopied ? 'bg-green-500 text-white' : isDark ? 'bg-blue-900/40 text-blue-400 hover:bg-blue-900/60' : 'bg-white text-blue-600 hover:bg-blue-50'}`}>
+                    {aiCopied ? <><Check size={10} /> Disalin!</> : <><Copy size={10} /> Salin</>}
+                  </button>
+                </div>
+                <div className={`p-4 text-xs leading-relaxed whitespace-pre-wrap max-h-[350px] overflow-y-auto
+                  ${isDark ? 'text-gray-300' : 'text-gray-700'}
+                  [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-300`}>
+                  {aiResult}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'AI_TITLE_GEN':
+        return (
+          <div className="space-y-4 mt-1">
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest
+              ${isDark ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-800/50' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+              <Sparkles size={10} /> AI Generator Judul Skripsi
+            </div>
+            <div>
+              <label className={labelCls}>Jurusan / Program Studi *</label>
+              <input
+                className={inputCls}
+                placeholder="Contoh: Teknik Informatika, Manajemen, Psikologi..."
+                value={aiTitleJurusan}
+                onChange={e => setAiTitleJurusan(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Minat / Topik Penelitian <span className={`normal-case font-normal ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>(opsional)</span></label>
+              <input
+                className={inputCls}
+                placeholder="Contoh: Machine Learning, UMKM, Kecemasan, IoT, Media Sosial..."
+                value={aiTitleMinat}
+                onChange={e => setAiTitleMinat(e.target.value)}
+              />
+            </div>
+            {aiLoading && (
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                  <span className={`text-xs font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI sedang menganalisis dan membuat judul...</span>
+                </div>
+              </div>
+            )}
+            {aiResult && !aiLoading && (
+              <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-emerald-800/40 bg-emerald-900/10' : 'border-emerald-100 bg-emerald-50/50'}`}>
+                <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isDark ? 'border-emerald-800/40 bg-emerald-900/20' : 'border-emerald-100 bg-emerald-100/60'}`}>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 flex items-center gap-1.5">
+                    <Sparkles size={10} /> 10 Ide Judul Skripsi
+                  </span>
+                  <button onClick={copyAiResult}
+                    className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors
+                      ${aiCopied ? 'bg-green-500 text-white' : isDark ? 'bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/60' : 'bg-white text-emerald-600 hover:bg-emerald-50'}`}>
+                    {aiCopied ? <><Check size={10} /> Disalin!</> : <><Copy size={10} /> Salin Semua</>}
+                  </button>
+                </div>
+                <div className={`p-4 text-xs leading-relaxed whitespace-pre-wrap max-h-[450px] overflow-y-auto
+                  ${isDark ? 'text-gray-300' : 'text-gray-700'}
+                  [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-emerald-300`}>
+                  {aiResult}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
@@ -1227,7 +1486,7 @@ export default function Home() {
 
   // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
   return (
-    <div className={`flex min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#060912] text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`flex h-screen overflow-hidden transition-colors duration-200 ${isDark ? 'bg-[#060912] text-gray-100' : 'bg-[#f0f2f8] text-gray-900'}`}>
 
       {/* ── Toast ──────────────────────────────────────────────────────────────── */}
       {toast && (
@@ -1285,50 +1544,82 @@ export default function Home() {
       {isSidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
 
       {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-60 flex flex-col border-r transition-transform duration-300
-        ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-200'}
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0`}>
-        <div className="flex flex-col h-full overflow-y-auto">
-          {/* Logo */}
-          <div className="px-4 pt-5 pb-4 flex items-center gap-2.5 border-b border-gray-800/30">
-            <div className="bg-red-600 p-1.5 rounded-xl shadow-lg shadow-red-600/30"><Zap size={15} className="text-white fill-current" /></div>
-            <span className="text-sm font-black italic uppercase tracking-tighter">ANAK <span className="text-red-600">KAMPUS</span></span>
+      <aside className={`flex-shrink-0 flex flex-col h-full z-50 w-64 border-r transition-all duration-300 ease-in-out
+        ${isDark
+          ? 'bg-gradient-to-b from-[#0a0e1a] via-[#0C101C] to-[#080b16] border-gray-800/60'
+          : 'bg-gradient-to-b from-white via-white to-gray-50/80 border-gray-200/80 shadow-xl shadow-gray-200/50'}
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 left-0`}>
+
+        {/* Logo */}
+        <div className={`flex-shrink-0 px-5 pt-6 pb-5 flex items-center gap-3 border-b
+          ${isDark ? 'border-gray-800/60' : 'border-gray-100'}`}>
+          <div className="relative">
+            <div className="absolute inset-0 bg-red-600 rounded-xl blur-md opacity-50" />
+            <div className="relative bg-gradient-to-br from-red-500 to-red-700 p-2 rounded-xl shadow-lg shadow-red-600/40">
+              <Zap size={16} className="text-white fill-current" />
+            </div>
           </div>
-          {/* Nav */}
-          <nav className="flex-1 px-2.5 py-3 space-y-4 overflow-y-auto">
-            {MENU_GROUPS.map(group => (
-              <div key={group.label}>
-                <p className={`text-[9px] font-black uppercase tracking-widest px-2 mb-1 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{group.label}</p>
-                <div className="space-y-0.5">
-                  {group.items.map(item => (
-                    <button key={item.id} onClick={() => { setCurrentMode(item.id); resetState(); setIsSidebarOpen(false); }}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-bold text-[11px] transition-all duration-100
-                        ${currentMode === item.id
-                          ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                          : isDark ? 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}>
-                      {getIcon(item.icon, 13)} {item.name}
-                    </button>
-                  ))}
-                </div>
+          <div>
+            <span className="text-sm font-black italic uppercase tracking-tighter leading-none">
+              ANAK <span className="text-red-500">KAMPUS</span>
+            </span>
+            <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Tools Mahasiswa</p>
+          </div>
+        </div>
+
+        {/* Nav — ONLY this scrolls */}
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-5
+          [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:transparent
+          [&::-webkit-scrollbar-thumb]:rounded-full
+          [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+          {MENU_GROUPS.map(group => (
+            <div key={group.label}>
+              <p className={`text-[9px] font-black uppercase tracking-widest px-2 mb-2 flex items-center gap-2
+                ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                <span className="w-3 h-px bg-current rounded-full" />
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map(item => (
+                  <button key={item.id} onClick={() => { setCurrentMode(item.id); resetState(); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-[11px] transition-all duration-150 group/item
+                      ${currentMode === item.id
+                        ? isDark
+                          ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/30'
+                          : 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
+                        : isDark
+                          ? 'text-gray-500 hover:bg-white/5 hover:text-gray-200'
+                          : 'text-gray-500 hover:bg-gray-100/80 hover:text-gray-700'}`}>
+                    <span className={`flex-shrink-0 transition-transform duration-150 ${currentMode === item.id ? 'scale-110' : 'group-hover/item:scale-105'}`}>
+                      {getIcon(item.icon, 13)}
+                    </span>
+                    <span className="truncate">{item.name}</span>
+                    {currentMode === item.id && <ChevronRight size={11} className="ml-auto opacity-70 flex-shrink-0" />}
+                  </button>
+                ))}
               </div>
-            ))}
-          </nav>
-          {/* Bottom */}
-          <div className={`p-3 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-            <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}>
-              <span className="text-[9px] font-black uppercase tracking-widest">{isDark ? 'Mode Gelap' : 'Mode Terang'}</span>
-              {isDark ? <Moon size={13} className="text-blue-400" /> : <Sun size={13} className="text-orange-400" />}
-            </button>
-          </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Bottom — fixed, never scrolls */}
+        <div className={`flex-shrink-0 p-3 border-t ${isDark ? 'border-gray-800/60' : 'border-gray-100'}`}>
+          <button onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200
+              ${isDark
+                ? 'bg-white/5 hover:bg-white/10 text-gray-400 border border-gray-800/60'
+                : 'bg-gray-100/80 hover:bg-gray-200/80 text-gray-600 border border-transparent'}`}>
+            <span className="text-[9px] font-black uppercase tracking-widest">{isDark ? 'Mode Gelap' : 'Mode Terang'}</span>
+            {isDark ? <Moon size={14} className="text-blue-400" /> : <Sun size={14} className="text-orange-400" />}
+          </button>
         </div>
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────────────────────── */}
-      <main className="flex-1 min-h-screen flex flex-col overflow-x-hidden">
+      <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <header className={`sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b backdrop-blur-xl
-          ${isDark ? 'bg-[#060912]/90 border-gray-800' : 'bg-white/90 border-gray-100'}`}>
+        <header className={`flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b backdrop-blur-xl z-30
+          ${isDark ? 'bg-[#060912]/90 border-gray-800/60' : 'bg-white/90 border-gray-200/60 shadow-sm'}`}>
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className={`lg:hidden p-2 rounded-xl border transition-colors ${isDark ? 'border-gray-800 text-gray-400 hover:bg-gray-800' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
@@ -1367,8 +1658,9 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Content */}
-        <div className="flex-1 p-4 pb-28 lg:pb-6 max-w-4xl w-full mx-auto">
+        {/* Content — ONLY this area scrolls */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="p-5 pb-28 lg:pb-8 max-w-4xl w-full mx-auto">
 
           {/* Premium Banner */}
           {!isPremium && (
@@ -1395,7 +1687,7 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
             {/* Left: Tool UI */}
             <div className="lg:col-span-3 space-y-4">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+              <div className={`p-5 rounded-2xl border ${isDark ? 'bg-[#0C101C]/90 border-gray-800/60 shadow-xl shadow-black/30' : 'bg-white border-gray-100 shadow-md shadow-gray-200/60'}`}>
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                   <span className="w-1 h-3 rounded-full bg-red-600 inline-block" />
                   {cfg.label}
@@ -1414,7 +1706,7 @@ export default function Home() {
             {/* Right: Action Panel */}
             <div className="lg:col-span-2 space-y-3">
               {/* Quota Card */}
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-[#0C101C]/90 border-gray-800/60 shadow-xl shadow-black/30' : 'bg-white border-gray-100 shadow-md shadow-gray-200/60'}`}>
                 <div className="flex justify-between items-center mb-2">
                   <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Kuota Download</span>
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${isPremium ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-500'}`}>
@@ -1432,28 +1724,30 @@ export default function Home() {
 
               {/* Action Button */}
               <button disabled={(!isReady() && !quotaFull) || isProcessing} onClick={handleMainAction}
-                className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2
-                  ${quotaFull ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-xl shadow-red-500/30 hover:scale-[1.02]'
-                    : isReady() && !isProcessing ? 'bg-red-600 text-white shadow-xl shadow-red-500/25 hover:scale-[1.02] active:scale-95'
-                    : isDark ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}>
+                className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 relative overflow-hidden
+                  ${quotaFull
+                    ? 'bg-gradient-to-r from-orange-500 via-red-500 to-red-600 text-white shadow-xl shadow-red-500/40 hover:scale-[1.02] hover:shadow-red-500/50'
+                    : isReady() && !isProcessing
+                      ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xl shadow-red-600/35 hover:scale-[1.02] hover:shadow-red-600/50 active:scale-95'
+                      : isDark ? 'bg-gray-800/60 text-gray-600 cursor-not-allowed border border-gray-800' : 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200'}`}>
                 {isProcessing ? (
                   <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Memproses...</>
                 ) : quotaFull ? (
                   <><Crown size={14} className="fill-current" /> Kuota Habis — Upgrade</>
                 ) : (
-                  <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</> : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</> : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</> : <><Download size={14} /> Proses & Unduh</>}</>
+                  <>{currentMode === 'OCR' ? <><ScanText size={14} /> Scan OCR</> : currentMode === 'QR_CODE' ? <><QrCode size={14} /> Buat QR</> : currentMode === 'WORD_COUNTER' ? <><CheckCircle2 size={14} /> Analisis</> : currentMode === 'AI_SUMMARIZER' ? <><Sparkles size={14} /> Ringkas dengan AI</> : currentMode === 'AI_PARAPHRASE' ? <><Sparkles size={14} /> Parafrase dengan AI</> : currentMode === 'AI_TITLE_GEN' ? <><Sparkles size={14} /> Generate Judul</> : <><Download size={14} /> Proses & Unduh</>}</>
                 )}
               </button>
 
               {/* Reset Button */}
-              {(singleFile || images.length > 0 || multiFiles.length > 0 || ocrResult || organizerLoaded || wordText) && (
+              {(singleFile || images.length > 0 || multiFiles.length > 0 || ocrResult || organizerLoaded || wordText || aiResult || aiParaphraseText) && (
                 <button onClick={resetState} className={`w-full py-2.5 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 ${isDark ? 'text-gray-600 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'}`}>
                   <Trash2 size={11} /> Reset
                 </button>
               )}
 
               {/* Info Card */}
-              <div className={`p-3.5 rounded-2xl border ${isDark ? 'bg-gray-900/30 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-white/[0.02] border-gray-800/60' : 'bg-gray-50/80 border-gray-100'}`}>
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>Cara Pakai</p>
                 <div className="space-y-1.5">
                   {[
@@ -1470,6 +1764,7 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </main>
 
@@ -1488,7 +1783,7 @@ export default function Home() {
                 className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 px-1 relative transition-colors
                   ${isActive ? 'text-red-600' : isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                 {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-red-600 rounded-full" />}
-                <span className="text-base">{group.label === 'Konversi' ? '🔄' : group.label === 'PDF Tools' ? '📄' : group.label === 'Gambar' ? '🖼️' : group.label === 'Mahasiswa' ? '🎓' : group.label === 'Teks & Warna' ? '✏️' : '✨'}</span>
+                <span className="text-base">{group.label === 'Konversi' ? '🔄' : group.label === 'PDF Tools' ? '📄' : group.label === 'Gambar' ? '🖼️' : group.label === 'AI Tools' ? '🤖' : group.label === 'Mahasiswa' ? '🎓' : group.label === 'Teks & Warna' ? '✏️' : '✨'}</span>
                 <span className="text-[8px] font-black uppercase tracking-wider truncate w-full text-center leading-tight">{group.label}</span>
               </button>
             );
