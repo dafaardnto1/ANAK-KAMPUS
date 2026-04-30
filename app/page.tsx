@@ -412,7 +412,7 @@ export default function Home() {
       const pages = await merged.copyPages(doc, doc.getPageIndices());
       pages.forEach(p => merged.addPage(p));
     }
-    await saveBlob(new Blob([await merged.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_MERGED.pdf');
+    await saveBlob(new Blob([await merged.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_MERGED.pdf');
   }, [multiFiles, saveBlob]);
 
   const handlePdfSplitter = useCallback(async () => {
@@ -422,7 +422,7 @@ export default function Home() {
     const newDoc = await PDFDocument.create();
     const pages = await newDoc.copyPages(src, Array.from({ length: to - from + 1 }, (_, i) => from + i));
     pages.forEach(p => newDoc.addPage(p));
-    await saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_SPLIT.pdf');
+    await saveBlob(new Blob([await newDoc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_SPLIT.pdf');
   }, [splitFrom, splitTo, singleFile, saveBlob, showToast]);
 
   const handlePdfCompressor = useCallback(async () => {
@@ -441,7 +441,7 @@ export default function Home() {
       const pdfPage = newDoc.addPage([viewport.width, viewport.height]);
       pdfPage.drawImage(img, { x: 0, y: 0, width: viewport.width, height: viewport.height });
     }
-    await saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_COMPRESSED.pdf');
+    await saveBlob(new Blob([await newDoc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_COMPRESSED.pdf');
   }, [singleFile, saveBlob]);
 
   const handleAddWatermark = useCallback(async () => {
@@ -455,7 +455,7 @@ export default function Home() {
         size: 48, font, color: rgb(0.8, 0.1, 0.1), opacity: 0.2, rotate: degrees(45),
       });
     });
-    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_WATERMARKED.pdf');
+    await saveBlob(new Blob([await doc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_WATERMARKED.pdf');
   }, [watermarkText, singleFile, saveBlob, showToast]);
 
   const handleProtectPdf = useCallback(async () => {
@@ -464,7 +464,7 @@ export default function Home() {
     doc.setTitle(`PROTECTED - ${singleFile!.name}`);
     doc.setAuthor('ANAK KAMPUS');
     doc.setSubject(`Password hint: ${pdfPassword[0]}${'*'.repeat(pdfPassword.length - 1)}`);
-    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_PROTECTED.pdf');
+    await saveBlob(new Blob([await doc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_PROTECTED.pdf');
   }, [pdfPassword, singleFile, saveBlob, showToast]);
 
   const handlePageNumbering = useCallback(async () => {
@@ -479,7 +479,7 @@ export default function Home() {
         : pageNumberPos === 'bottom-right' ? width - tWidth - 30 : 30;
       page.drawText(label, { x, y: 22, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
     });
-    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_NUMBERED.pdf');
+    await saveBlob(new Blob([await doc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_NUMBERED.pdf');
   }, [pageNumberStart, singleFile, pageNumberPos, saveBlob]);
 
   const handleMetadataEditor = useCallback(async () => {
@@ -489,7 +489,7 @@ export default function Home() {
     if (metaSubject.trim()) doc.setSubject(metaSubject.trim());
     if (metaKeywords.trim()) doc.setKeywords([metaKeywords.trim()]);
     doc.setProducer('ANAK KAMPUS'); doc.setCreator('ANAK KAMPUS');
-    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_EDITED.pdf');
+    await saveBlob(new Blob([await doc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_EDITED.pdf');
   }, [singleFile, metaTitle, metaAuthor, metaSubject, metaKeywords, saveBlob]);
 
   const handlePageOrganizer = useCallback(async () => {
@@ -501,7 +501,7 @@ export default function Home() {
       if (active[i].rotation !== 0) page.setRotation(degrees(active[i].rotation));
       newDoc.addPage(page);
     });
-    await saveBlob(new Blob([await newDoc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_ORGANIZED.pdf');
+    await saveBlob(new Blob([await newDoc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_ORGANIZED.pdf');
   }, [singleFile, organizerPages, saveBlob]);
 
   const handleAddSignature = useCallback(async () => {
@@ -519,7 +519,7 @@ export default function Home() {
       x: parseInt(sigX) || 50, y: height - (parseInt(sigY) || 50) - (w * sigImg.height / sigImg.width),
       width: w, height: w * sigImg.height / sigImg.width
     });
-    await saveBlob(new Blob([await doc.save()], { type: 'application/pdf' }), 'ANAK_KAMPUS_SIGNED.pdf');
+    await saveBlob(new Blob([await doc.save() as unknown as BlobPart], { type: 'application/pdf' }), 'ANAK_KAMPUS_SIGNED.pdf');
   }, [sigFile, singleFile, sigPage, sigWidth, sigX, sigY, saveBlob, showToast]);
 
   const handleOcr = useCallback(async () => {
